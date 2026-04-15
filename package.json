@@ -1,0 +1,57 @@
+{
+  "name": "featheragents",
+  "version": "0.1.0",
+  "description": "Lean multi-model agentic coding workflow — bootstraps project structure, skills, and a local MCP server for coordinating Claude Code and OpenCode.",
+  "type": "module",
+  "bin": {
+    "featheragents": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "cli",
+    "mcp",
+    "claude-code",
+    "opencode",
+    "multi-model",
+    "ai-workflow",
+    "coding-agent",
+    "llm",
+    "anthropic"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/featheragents/featheragents.git"
+  },
+  "homepage": "https://github.com/featheragents/featheragents#readme",
+  "bugs": {
+    "url": "https://github.com/featheragents/featheragents/issues"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.4.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^14.0.3",
+    "execa": "^9.6.1",
+    "fast-glob": "^3.3.3",
+    "zod": "^4.3.6"
+  }
+}

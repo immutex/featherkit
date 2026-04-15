@@ -1,0 +1,10 @@
+src/
+test/
+tasks/
+tsup.config.ts
+tsconfig.json
+vitest.config.ts
+*.tsbuildinfo
+.claude/
+bun.lock
+bun.lockb
