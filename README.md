@@ -113,6 +113,7 @@ Use `--preset <name>` with `featheragents init` to skip the interactive selector
 | `featheragents doctor` | Health check — verify config, files, MCP registration |
 | `featheragents task start <id>` | Create and activate a task |
 | `featheragents task sync` | Show current task status and progress |
+| `featheragents task log <id>` | Full timeline for a task — progress, handoff, review notes |
 | `featheragents handoff write` | Write a role-to-role handoff note |
 | `featheragents review prepare` | Generate a review checklist from task progress |
 | `featheragents mcp install` | Re-register the MCP server with configured clients |
@@ -131,12 +132,14 @@ The local MCP server exposes 9 tools to your coding agents. Register once via `f
 | `get_project_brief` | Project name, active task, model assignments, enabled integrations |
 | `get_active_focus` | Current task details and the latest handoff note |
 | `get_task` | Full task file by ID — goal, files, done criteria, progress log |
-| `list_tasks` | All tasks with status (pending / in-progress / done) |
-| `start_task` | Create or activate a task |
+| `list_tasks` | All tasks with status — shows dependency annotations |
+| `start_task` | Create or activate a task — warns if dependencies are unmet |
 | `append_progress` | Add a timestamped progress entry to the active task |
 | `write_handoff` | Write a handoff note from one role to another |
 | `record_review_notes` | Attach review findings (bugs, mismatches, edge cases) to a task |
 | `record_decision` | Persist a named architectural decision with rationale |
+| `get_diff` | Scoped git diff for the current task's files — use in critic sessions instead of manual `git diff` |
+| `prepare_context_pack` | Single-call role-specific context bundle (goal + diff + handoff + conventions) |
 
 The server runs as a local stdio process — no daemon, no port, no hosted service. It's spawned by your client (Claude Code or OpenCode) on demand.
 

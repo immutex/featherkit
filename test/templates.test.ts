@@ -221,6 +221,8 @@ const MCP_TOOLS = [
   'mcp__featheragents__append_progress',
   'mcp__featheragents__record_review_notes',
   'mcp__featheragents__write_handoff',
+  'mcp__featheragents__get_diff',
+  'mcp__featheragents__prepare_context_pack',
 ];
 
 describe('renderFrameSkill', () => {

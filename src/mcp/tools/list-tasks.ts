@@ -35,7 +35,11 @@ export function registerListTasks(server: McpServer): void {
       const lines = tasks.map((t) => {
         const current = t.id === state.currentTask ? ' ← current' : '';
         const role = t.assignedRole ? ` [${t.assignedRole}]` : '';
-        return `- **${t.id}** (${t.status})${role}: ${t.title}${current}`;
+        const deps =
+          t.dependsOn && t.dependsOn.length > 0
+            ? ` [blocked-by: ${t.dependsOn.join(', ')}]`
+            : '';
+        return `- **${t.id}** (${t.status})${role}${deps}: ${t.title}${current}`;
       });
 
       return {

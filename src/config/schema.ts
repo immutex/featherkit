@@ -55,6 +55,7 @@ export const TaskEntrySchema = z.object({
   title: z.string(),
   status: TaskStatusSchema,
   assignedRole: ModelRoleSchema.optional(),
+  dependsOn: z.array(z.string()).optional(),
   progress: z.array(ProgressEntrySchema),
   handoff: HandoffSchema.optional(),
   reviewNotes: z.string().optional(),

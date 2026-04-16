@@ -31,6 +31,8 @@ Use \`mcp__featheragents__*\` tools for project state:
 - \`write_handoff\` — write handoff between roles
 - \`record_decision\` — record an architectural decision
 - \`list_tasks\` — all tasks and statuses
+- \`get_diff\` — scoped git diff for the current task's files (use in critic sessions)
+- \`prepare_context_pack\` — single-call context bundle for a specific role (frame/build/critic/sync)
 
 ### Skills
 - \`/frame\` — plan a task (read context, produce summary + done criteria)

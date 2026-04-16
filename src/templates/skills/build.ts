@@ -75,6 +75,7 @@ Before declaring done, check each criterion in the task file explicitly. Run tes
 ## Token efficiency
 
 - \`get_task\` gives you everything you need — don't also load the entire project brief
+- For a single-call context bundle: \`prepare_context_pack { forRole: "build", taskId: "<id>" }\` replaces \`get_task\` + conventions reading with one call
 - Read source files surgically: the specific files named in the task, plus direct imports
 - \`append_progress\` keeps notes compact — one sentence per entry
 - Don't summarize what you're about to do; just do it

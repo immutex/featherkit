@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdir, writeFile, readFile, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -7,7 +7,7 @@ import { randomBytes } from 'crypto';
 
 import { defaultConfig } from '../src/config/defaults.js';
 import { saveState, loadState } from '../src/mcp/state-io.js';
-import { runTaskStart, runTaskSync } from '../src/commands/task.js';
+import { runTaskStart, runTaskSync, runTaskLog } from '../src/commands/task.js';
 import { runHandoffWrite } from '../src/commands/handoff.js';
 import { runReviewPrepare } from '../src/commands/review.js';
 import { runSkillsInstall, getSkillFiles } from '../src/commands/skills-install.js';
@@ -385,6 +385,77 @@ describe('runSkillsInstall', () => {
       expect(f.relativePath).toBeTruthy();
       expect(f.content).toBeTruthy();
     }
+  });
+});
+
+// ── runTaskLog ────────────────────────────────────────────────────────────────
+
+describe('runTaskLog', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = makeTmpDir();
+    await mkdir(tmpDir, { recursive: true });
+    await setupProject(tmpDir);
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('exits with error for unknown task ID', async () => {
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => { throw new Error('process.exit'); });
+    await expect(runTaskLog('UNKNOWN-999', tmpDir)).rejects.toThrow();
+    exitSpy.mockRestore();
+  });
+
+  it('prints task header for a known task', async () => {
+    const state = freshState();
+    state.tasks.push({
+      id: 'FEAT-001',
+      title: 'Add logging',
+      status: 'active',
+      progress: [
+        { timestamp: '2026-04-10T14:23:00.000Z', role: 'build', message: 'Implemented handler' },
+      ],
+    });
+    await saveState(state, undefined, tmpDir);
+
+    // runTaskLog prints to terminal — we just verify it doesn't throw and task exists in state
+    await expect(runTaskLog('FEAT-001', tmpDir)).resolves.toBeUndefined();
+  });
+
+  it('prints handoff block when task has a handoff', async () => {
+    const state = freshState();
+    state.tasks.push({
+      id: 'FEAT-002',
+      title: 'With handoff',
+      status: 'done',
+      progress: [],
+      handoff: {
+        from: 'build',
+        to: 'critic',
+        notes: 'Done. Please review.',
+        timestamp: '2026-04-11T09:00:00.000Z',
+      },
+    });
+    await saveState(state, undefined, tmpDir);
+
+    await expect(runTaskLog('FEAT-002', tmpDir)).resolves.toBeUndefined();
+  });
+
+  it('prints review notes when present', async () => {
+    const state = freshState();
+    state.tasks.push({
+      id: 'FEAT-003',
+      title: 'With review',
+      status: 'done',
+      progress: [],
+      reviewNotes: 'LGTM. All criteria met.',
+    });
+    await saveState(state, undefined, tmpDir);
+
+    await expect(runTaskLog('FEAT-003', tmpDir)).resolves.toBeUndefined();
   });
 });
 

@@ -100,6 +100,59 @@ export async function runTaskSync(cwd: string): Promise<void> {
   log.blank();
 }
 
+// ── task log ──────────────────────────────────────────────────────────────────
+
+export async function runTaskLog(taskId: string, cwd: string): Promise<void> {
+  const config = await loadConfig(cwd);
+  const state = await loadState(config.stateDir, cwd);
+
+  const task = state.tasks.find((t) => t.id === taskId);
+  if (!task) {
+    const ids = state.tasks.map((t) => t.id).join(', ') || 'none';
+    log.error(`Task "${taskId}" not found. Available: ${ids}`);
+    process.exit(1);
+  }
+
+  log.blank();
+  log.bold(`Task: ${task.id} — ${task.title}`);
+  log.info(`Status: ${task.status}`);
+  if (task.assignedRole) log.info(`Role: ${task.assignedRole}`);
+  log.blank();
+
+  // Progress timeline
+  if (task.progress.length > 0) {
+    const sorted = [...task.progress].sort((a, b) =>
+      a.timestamp.localeCompare(b.timestamp)
+    );
+    for (const entry of sorted) {
+      const date = entry.timestamp.slice(0, 16).replace('T', ' ');
+      log.dim(`${date} [${entry.role.padEnd(6)}]  ${entry.message}`);
+    }
+  } else {
+    log.dim('(no progress entries)');
+  }
+
+  // Handoff block
+  if (task.handoff) {
+    log.blank();
+    log.bold(`Handoff: ${task.handoff.from} → ${task.handoff.to}  (${task.handoff.timestamp.slice(0, 10)})`);
+    for (const line of task.handoff.notes.split('\n')) {
+      log.info(`  ${line}`);
+    }
+  }
+
+  // Review notes block
+  if (task.reviewNotes) {
+    log.blank();
+    log.bold('Review Notes:');
+    for (const line of task.reviewNotes.split('\n')) {
+      log.info(`  ${line}`);
+    }
+  }
+
+  log.blank();
+}
+
 // ── Commander commands ────────────────────────────────────────────────────────
 
 export const taskCommand = new Command('task').description('Task management commands');
@@ -123,6 +176,18 @@ taskCommand
   .action(async () => {
     try {
       await runTaskSync(process.cwd());
+    } catch (err) {
+      log.error(String(err));
+      process.exit(1);
+    }
+  });
+
+taskCommand
+  .command('log <id>')
+  .description('Show the full timeline of a task — progress, handoff, review notes')
+  .action(async (id: string) => {
+    try {
+      await runTaskLog(id, process.cwd());
     } catch (err) {
       log.error(String(err));
       process.exit(1);

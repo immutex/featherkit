@@ -24,9 +24,13 @@ mcp__featheragents__get_task  { taskId: "<id>" }
 
 Read the goal, done criteria, progress log, and any existing review notes. This is your review scope — stay within it.
 
-### 2. Read the diff
+### 2. Get the diff
 
-Review the code changes relevant to this task. Use git diff or read the changed files directly. Focus on what changed, not the entire codebase.
+\`\`\`
+mcp__featheragents__get_diff  { taskId: "<id>" }
+\`\`\`
+
+This returns a git diff scoped to the files listed in the task. Read only what changed — not the entire codebase.
 
 ### 3. Check each done criterion
 
@@ -88,8 +92,9 @@ Format your notes as:
 ## Token efficiency
 
 - \`get_task\` scopes your review — don't load unrelated context
-- Read only the files that changed for this task
-- One entry in record_review_notes is enough — don't call it repeatedly
+- \`get_diff\` scopes the diff to task files — no need to read full file contents unless a specific line needs more context
+- For a single-call context bundle: \`prepare_context_pack { forRole: "critic", taskId: "<id>" }\` replaces \`get_task\` + \`get_diff\` with one call
+- One entry in \`record_review_notes\` is enough — don't call it repeatedly
 - If a criterion is clearly met, note it and move on
 `;
 }

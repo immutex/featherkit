@@ -9,6 +9,9 @@ ${title ? `> ${title}\n` : ''}
 ## Status
 pending
 
+## Dependencies
+<!-- Task IDs that must be done before this one starts (e.g. FEAT-001) -->
+
 ## Files
 <!-- List files likely to be created or modified -->
 

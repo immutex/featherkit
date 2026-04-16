@@ -81,7 +81,7 @@ async function teardownTmpProject() {
 // ── Tool registration ─────────────────────────────────────────────────────────
 
 describe('registerAllTools', () => {
-  it('registers all 9 expected tools', async () => {
+  it('registers all 11 expected tools', async () => {
     const { registerAllTools } = await import('../src/mcp/tools/index.js');
     const server = new MockMcpServer();
     registerAllTools(server as unknown as McpServer);
@@ -96,6 +96,8 @@ describe('registerAllTools', () => {
       'write_handoff',
       'record_decision',
       'list_tasks',
+      'get_diff',
+      'prepare_context_pack',
     ];
 
     for (const name of expectedTools) {
@@ -475,5 +477,313 @@ describe('record_decision', () => {
     const files = readdirSync(decisionsDir);
     const content = await readFile(join(decisionsDir, files[0]!), 'utf8');
     expect(content).toContain('**Status:** proposed');
+  });
+});
+
+// ── get_diff ──────────────────────────────────────────────────────────────────
+
+describe('get_diff', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  it('returns message when no task is active and no taskId given', async () => {
+    const { registerGetDiff } = await import('../src/mcp/tools/get-diff.js');
+    const server = new MockMcpServer();
+    registerGetDiff(server as unknown as McpServer);
+
+    const text = await callTool(server, 'get_diff', {});
+    expect(text).toContain('No task specified');
+  });
+
+  it('returns diff header for an active task with a task markdown file', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-001';
+    state.tasks.push({ id: 'FEAT-001', title: 'Test', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    // Create task markdown with files section
+    await mkdir(join(tmpDir, 'project-docs', 'tasks'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'project-docs', 'tasks', 'FEAT-001.md'),
+      '# Task: FEAT-001\n\n## Files\nsrc/some-file.ts\n\n## Done Criteria\n- [ ] done\n',
+      'utf8'
+    );
+
+    const { registerGetDiff } = await import('../src/mcp/tools/get-diff.js');
+    const server = new MockMcpServer();
+    registerGetDiff(server as unknown as McpServer);
+
+    // Git diff may be empty in test environment — just verify output structure
+    const text = await callTool(server, 'get_diff', {});
+    expect(text).toContain('FEAT-001');
+    expect(text).toContain('HEAD');
+  });
+
+  it('falls back to unscoped diff when task file has no ## Files section', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-002';
+    state.tasks.push({ id: 'FEAT-002', title: 'No files', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    await mkdir(join(tmpDir, 'project-docs', 'tasks'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'project-docs', 'tasks', 'FEAT-002.md'),
+      '# Task: FEAT-002\n\n## Goal\nDo something.\n',
+      'utf8'
+    );
+
+    const { registerGetDiff } = await import('../src/mcp/tools/get-diff.js');
+    const server = new MockMcpServer();
+    registerGetDiff(server as unknown as McpServer);
+
+    const text = await callTool(server, 'get_diff', { taskId: 'FEAT-002' });
+    expect(text).toContain('FEAT-002');
+    expect(text).toContain('unscoped');
+  });
+
+  it('accepts a custom base ref', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-003';
+    state.tasks.push({ id: 'FEAT-003', title: 'Custom base', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerGetDiff } = await import('../src/mcp/tools/get-diff.js');
+    const server = new MockMcpServer();
+    registerGetDiff(server as unknown as McpServer);
+
+    const text = await callTool(server, 'get_diff', { taskId: 'FEAT-003', base: 'main' });
+    expect(text).toContain('main');
+  });
+});
+
+// ── prepare_context_pack ──────────────────────────────────────────────────────
+
+describe('prepare_context_pack', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  async function setupTaskWithDocs(id: string) {
+    const state = freshState();
+    state.currentTask = id;
+    state.tasks.push({
+      id,
+      title: 'Test task',
+      status: 'active',
+      progress: [
+        { timestamp: new Date().toISOString(), role: 'build', message: 'Implemented handler' },
+      ],
+      handoff: {
+        from: 'build',
+        to: 'critic',
+        notes: 'Implementation done',
+        timestamp: new Date().toISOString(),
+      },
+      reviewNotes: 'LGTM.',
+    });
+    await saveState(state, undefined, tmpDir);
+
+    await mkdir(join(tmpDir, 'project-docs', 'tasks'), { recursive: true });
+    await mkdir(join(tmpDir, 'project-docs', 'context'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'project-docs', 'tasks', `${id}.md`),
+      `# Task: ${id}\n\n## Goal\nDo something useful.\n\n## Files\nsrc/example.ts\n\n## Constraints\nMust not break existing tests.\n\n## Done Criteria\n- [ ] Example works\n`,
+      'utf8'
+    );
+    await writeFile(
+      join(tmpDir, 'project-docs', 'context', 'conventions.md'),
+      Array.from({ length: 60 }, (_, i) => `Convention line ${i + 1}`).join('\n'),
+      'utf8'
+    );
+  }
+
+  it('returns a context pack for build role with goal and done criteria', async () => {
+    await setupTaskWithDocs('FEAT-010');
+
+    const { registerPrepareContextPack } = await import('../src/mcp/tools/prepare-context-pack.js');
+    const server = new MockMcpServer();
+    registerPrepareContextPack(server as unknown as McpServer);
+
+    const text = await callTool(server, 'prepare_context_pack', { forRole: 'build' });
+    expect(text).toContain('Task Goal');
+    expect(text).toContain('Do something useful');
+    expect(text).toContain('Done Criteria');
+    expect(text).toContain('Latest Handoff');
+    expect(text).toContain('Conventions');
+    // Should NOT include diff (that's critic-only)
+    expect(text).not.toContain('Diff (HEAD)');
+  });
+
+  it('returns a context pack for critic role with diff section', async () => {
+    await setupTaskWithDocs('FEAT-011');
+
+    const { registerPrepareContextPack } = await import('../src/mcp/tools/prepare-context-pack.js');
+    const server = new MockMcpServer();
+    registerPrepareContextPack(server as unknown as McpServer);
+
+    const text = await callTool(server, 'prepare_context_pack', { forRole: 'critic' });
+    expect(text).toContain('Diff (HEAD)');
+    expect(text).toContain('Done Criteria');
+    expect(text).toContain('Recent Progress');
+    // Should NOT include conventions snippet (critic doesn't need it)
+    expect(text).not.toContain('Convention line');
+  });
+
+  it('returns a context pack for sync role with handoff and progress', async () => {
+    await setupTaskWithDocs('FEAT-012');
+
+    const { registerPrepareContextPack } = await import('../src/mcp/tools/prepare-context-pack.js');
+    const server = new MockMcpServer();
+    registerPrepareContextPack(server as unknown as McpServer);
+
+    const text = await callTool(server, 'prepare_context_pack', { forRole: 'sync' });
+    expect(text).toContain('Latest Handoff');
+    expect(text).toContain('Recent Progress');
+    expect(text).toContain('Review Notes');
+    expect(text).not.toContain('Diff (HEAD)');
+  });
+
+  it('truncates conventions snippet at 50 lines', async () => {
+    await setupTaskWithDocs('FEAT-013');
+
+    const { registerPrepareContextPack } = await import('../src/mcp/tools/prepare-context-pack.js');
+    const server = new MockMcpServer();
+    registerPrepareContextPack(server as unknown as McpServer);
+
+    const text = await callTool(server, 'prepare_context_pack', { forRole: 'build' });
+    expect(text).toContain('Convention line 50');
+    expect(text).not.toContain('Convention line 51');
+    expect(text).toContain('truncated');
+  });
+
+  it('writes pack.md to disk when writeToDisk is true', async () => {
+    await setupTaskWithDocs('FEAT-014');
+    await mkdir(join(tmpDir, 'project-docs', 'active'), { recursive: true });
+
+    const { registerPrepareContextPack } = await import('../src/mcp/tools/prepare-context-pack.js');
+    const server = new MockMcpServer();
+    registerPrepareContextPack(server as unknown as McpServer);
+
+    const text = await callTool(server, 'prepare_context_pack', {
+      forRole: 'critic',
+      writeToDisk: true,
+    });
+    expect(text).toContain('pack.md');
+
+    const { existsSync } = await import('fs');
+    expect(existsSync(join(tmpDir, 'project-docs', 'active', 'pack.md'))).toBe(true);
+  });
+});
+
+// ── task dependencies ─────────────────────────────────────────────────────────
+
+describe('start_task dependency warnings', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  it('warns when a dependency is not done', async () => {
+    const state = freshState();
+    state.tasks.push({
+      id: 'FEAT-001',
+      title: 'First',
+      status: 'active',
+      progress: [],
+    });
+    state.tasks.push({
+      id: 'FEAT-002',
+      title: 'Second',
+      status: 'pending',
+      dependsOn: ['FEAT-001'],
+      progress: [],
+    });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerStartTask } = await import('../src/mcp/tools/start-task.js');
+    const server = new MockMcpServer();
+    registerStartTask(server as unknown as McpServer);
+
+    const text = await callTool(server, 'start_task', { taskId: 'FEAT-002' });
+    expect(text).toContain('Warning');
+    expect(text).toContain('FEAT-001');
+  });
+
+  it('does not warn when all dependencies are done', async () => {
+    const state = freshState();
+    state.tasks.push({ id: 'FEAT-001', title: 'First', status: 'done', progress: [] });
+    state.tasks.push({
+      id: 'FEAT-002',
+      title: 'Second',
+      status: 'pending',
+      dependsOn: ['FEAT-001'],
+      progress: [],
+    });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerStartTask } = await import('../src/mcp/tools/start-task.js');
+    const server = new MockMcpServer();
+    registerStartTask(server as unknown as McpServer);
+
+    const text = await callTool(server, 'start_task', { taskId: 'FEAT-002' });
+    expect(text).not.toContain('Warning');
+  });
+
+  it('still activates the task despite unmet dependencies (advisory only)', async () => {
+    const state = freshState();
+    state.tasks.push({ id: 'FEAT-001', title: 'First', status: 'active', progress: [] });
+    state.tasks.push({
+      id: 'FEAT-002',
+      title: 'Second',
+      status: 'pending',
+      dependsOn: ['FEAT-001'],
+      progress: [],
+    });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerStartTask } = await import('../src/mcp/tools/start-task.js');
+    const server = new MockMcpServer();
+    registerStartTask(server as unknown as McpServer);
+
+    await callTool(server, 'start_task', { taskId: 'FEAT-002' });
+    const updated = await loadState(undefined, tmpDir);
+    const task = updated.tasks.find((t) => t.id === 'FEAT-002');
+    expect(task?.status).toBe('active');
+  });
+});
+
+describe('list_tasks dependency annotations', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  it('shows blocked-by annotation for tasks with dependsOn', async () => {
+    const state = freshState();
+    state.tasks.push({ id: 'FEAT-001', title: 'First', status: 'done', progress: [] });
+    state.tasks.push({
+      id: 'FEAT-002',
+      title: 'Second',
+      status: 'pending',
+      dependsOn: ['FEAT-001'],
+      progress: [],
+    });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerListTasks } = await import('../src/mcp/tools/list-tasks.js');
+    const server = new MockMcpServer();
+    registerListTasks(server as unknown as McpServer);
+
+    const text = await callTool(server, 'list_tasks', {});
+    expect(text).toContain('blocked-by');
+    expect(text).toContain('FEAT-001');
+  });
+
+  it('does not show blocked-by for tasks without dependsOn', async () => {
+    const state = freshState();
+    state.tasks.push({ id: 'FEAT-001', title: 'First', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerListTasks } = await import('../src/mcp/tools/list-tasks.js');
+    const server = new MockMcpServer();
+    registerListTasks(server as unknown as McpServer);
+
+    const text = await callTool(server, 'list_tasks', {});
+    expect(text).not.toContain('blocked-by');
   });
 });

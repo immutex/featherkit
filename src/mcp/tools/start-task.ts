@@ -41,11 +41,29 @@ export function registerStartTask(server: McpServer): void {
       state.currentTask = taskId;
       await saveState(state, config?.stateDir);
 
+      // Dependency check — advisory warning, not a hard block
+      const task = state.tasks.find((t) => t.id === taskId);
+      const depWarnings: string[] = [];
+      if (task?.dependsOn && task.dependsOn.length > 0) {
+        for (const depId of task.dependsOn) {
+          const dep = state.tasks.find((t) => t.id === depId);
+          const depStatus = dep?.status ?? 'not found';
+          if (depStatus !== 'done') {
+            depWarnings.push(`  - ${depId} (${depStatus})`);
+          }
+        }
+      }
+
+      const warningBlock =
+        depWarnings.length > 0
+          ? `\n\n⚠ Warning: this task depends on tasks that are not yet done:\n${depWarnings.join('\n')}`
+          : '';
+
       return {
         content: [
           {
             type: 'text' as const,
-            text: `Task ${taskId} is now active.${role ? ` Assigned role: ${role}.` : ''}`,
+            text: `Task ${taskId} is now active.${role ? ` Assigned role: ${role}.` : ''}${warningBlock}`,
           },
         ],
       };
