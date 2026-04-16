@@ -96,7 +96,7 @@ describe('generateClaudeCodeConfig', () => {
     const parsed = JSON.parse(raw);
     expect(parsed.mcpServers?.featherkit?.command).toBe('node');
     expect(parsed.mcpServers?.featherkit?.args).toContain(
-      './node_modules/featherkit/dist/server.js'
+      './node_modules/@1mmutex/featherkit/dist/server.js'
     );
   });
 
@@ -190,7 +190,7 @@ describe('generateOpenCodeConfig', () => {
     expect(parsed.mcp?.featherkit?.command).toBe('node');
     expect(parsed.mcp?.featherkit?.type).toBe('local');
     expect(parsed.mcp?.featherkit?.args).toContain(
-      './node_modules/featherkit/dist/server.js'
+      './node_modules/@1mmutex/featherkit/dist/server.js'
     );
   });
 

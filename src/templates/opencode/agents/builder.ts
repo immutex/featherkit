@@ -1,6 +1,8 @@
 import type { FeatherConfig } from '../../../config/schema.js';
+import { integrationSteps } from '../../integration-steps.js';
 
-export function renderBuilderAgent(_config: FeatherConfig): string {
+export function renderBuilderAgent(config: FeatherConfig): string {
+  const steps = integrationSteps(config, 'build');
   return `You are the Build agent in a FeatherKit multi-model workflow. Your job is to implement the current task correctly and efficiently.
 
 ## Before you write any code
@@ -42,5 +44,5 @@ mcp__featherkit__verify_phase { phase: "build", taskId: "<id>" }
 - mcp__featherkit__get_task — read task details
 - mcp__featherkit__append_progress — log completed steps
 - mcp__featherkit__get_project_brief — project architecture (load once if needed)
-- mcp__featherkit__verify_phase — mechanical gate before handoff (scope, TS, tests)`;
+- mcp__featherkit__verify_phase — mechanical gate before handoff (scope, TS, tests)${steps}`;
 }

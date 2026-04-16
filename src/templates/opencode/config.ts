@@ -1,7 +1,11 @@
 import type { FeatherConfig } from '../../config/schema.js';
+import { renderBuilderAgent } from './agents/builder.js';
+import { renderCriticAgent } from './agents/critic.js';
+import { renderSyncerAgent } from './agents/syncer.js';
 
 interface OpenCodeAgentDef {
   description: string;
+  model?: string;
   system: string;
 }
 
@@ -16,28 +20,30 @@ export function renderOpenCodeConfig(config: FeatherConfig): string {
       featherkit: {
         type: 'local',
         command: 'node',
-        args: ['./node_modules/featherkit/dist/server.js'],
+        args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
       },
     },
   };
 
-  // Agent definitions reference the model assigned to each role
   const buildModel = config.models.find((m) => m.role === 'build');
   const criticModel = config.models.find((m) => m.role === 'critic');
   const syncModel = config.models.find((m) => m.role === 'sync');
 
   cfg.agents = {
     builder: {
-      description: `Build agent (${buildModel?.model ?? 'default'}) — implements tasks`,
-      system: 'Use the build skill: read task, implement, commit small, log progress.',
+      description: 'Build agent — implements tasks',
+      ...(buildModel ? { model: `${buildModel.provider}/${buildModel.model}` } : {}),
+      system: renderBuilderAgent(config),
     },
     critic: {
-      description: `Critic agent (${criticModel?.model ?? 'default'}) — reviews diffs`,
-      system: 'Use the critic skill: read task goal, review diff, record findings.',
+      description: 'Critic agent — reviews diffs against done criteria',
+      ...(criticModel ? { model: `${criticModel.provider}/${criticModel.model}` } : {}),
+      system: renderCriticAgent(config),
     },
     syncer: {
-      description: `Sync agent (${syncModel?.model ?? 'default'}) — writes handoffs`,
-      system: 'Use the sync skill: read state, write self-contained handoff.',
+      description: 'Sync agent — writes self-contained handoffs',
+      ...(syncModel ? { model: `${syncModel.provider}/${syncModel.model}` } : {}),
+      system: renderSyncerAgent(config),
     },
   };
 

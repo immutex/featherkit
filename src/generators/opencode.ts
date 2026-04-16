@@ -15,7 +15,7 @@ function buildMcpEntry(): Record<string, unknown> {
       featherkit: {
         type: 'local',
         command: 'node',
-        args: ['./node_modules/featherkit/dist/server.js'],
+        args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
       },
     },
   };
@@ -29,15 +29,18 @@ function buildAgentEntry(config: FeatherConfig): Record<string, unknown> {
   return {
     agents: {
       builder: {
-        description: `Build agent (${buildModel?.model ?? 'default'}) — implements tasks`,
+        description: 'Build agent — implements tasks',
+        ...(buildModel ? { model: `${buildModel.provider}/${buildModel.model}` } : {}),
         system: renderBuilderAgent(config),
       },
       critic: {
-        description: `Critic agent (${criticModel?.model ?? 'default'}) — reviews diffs`,
+        description: 'Critic agent — reviews diffs against done criteria',
+        ...(criticModel ? { model: `${criticModel.provider}/${criticModel.model}` } : {}),
         system: renderCriticAgent(config),
       },
       syncer: {
-        description: `Sync agent (${syncModel?.model ?? 'default'}) — writes handoffs`,
+        description: 'Sync agent — writes self-contained handoffs',
+        ...(syncModel ? { model: `${syncModel.provider}/${syncModel.model}` } : {}),
         system: renderSyncerAgent(config),
       },
     },

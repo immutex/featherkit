@@ -1,6 +1,8 @@
 import type { FeatherConfig } from '../../../config/schema.js';
+import { integrationSteps } from '../../integration-steps.js';
 
-export function renderSyncerAgent(_config: FeatherConfig): string {
+export function renderSyncerAgent(config: FeatherConfig): string {
+  const steps = integrationSteps(config, 'sync');
   return `You are the Sync agent in a FeatherKit multi-model workflow. Your job is to close out a work session with a self-contained handoff that lets the next role start immediately.
 
 ## Before you write anything
@@ -32,5 +34,5 @@ Your notes must include:
 
 - mcp__featherkit__get_task — task state
 - mcp__featherkit__get_active_focus — focus context
-- mcp__featherkit__write_handoff — write handoff (updates state and latest-handoff.md)`;
+- mcp__featherkit__write_handoff — write handoff (updates state and latest-handoff.md)${steps}`;
 }

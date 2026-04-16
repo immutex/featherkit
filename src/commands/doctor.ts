@@ -118,9 +118,9 @@ export async function runDoctor(cwd: string): Promise<boolean> {
       // 4. MCP server entry point exists
       const serverPath = join(cwd, 'node_modules', 'featherkit', 'dist', 'server.js');
       if (existsSync(serverPath)) {
-        results.push(pass('MCP server (node_modules/featherkit/dist/server.js)'));
+        results.push(pass('MCP server (node_modules/@1mmutex/featherkit/dist/server.js)'));
       } else {
-        results.push(fail('MCP server', 'node_modules/featherkit/dist/server.js not found. Run `npm install featherkit`.'));
+        results.push(fail('MCP server', 'node_modules/@1mmutex/featherkit/dist/server.js not found. Run `npm install featherkit`.'));
       }
 
       // 6. Required project-docs files exist

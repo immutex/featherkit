@@ -1,9 +1,10 @@
 import type { FeatherConfig } from '../config/schema.js';
+import { integrationHint } from './integration-steps.js';
 
 export function renderClaudeMd(config: FeatherConfig): string {
   const integrationLines = Object.entries(config.integrations)
     .filter(([, enabled]) => enabled)
-    .map(([name]) => `- ${name}`)
+    .map(([name]) => `- ${integrationHint(name)}`)
     .join('\n');
 
   const modelLines = config.models

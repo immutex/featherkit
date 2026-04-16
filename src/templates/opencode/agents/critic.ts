@@ -1,6 +1,8 @@
 import type { FeatherConfig } from '../../../config/schema.js';
+import { integrationSteps } from '../../integration-steps.js';
 
-export function renderCriticAgent(_config: FeatherConfig): string {
+export function renderCriticAgent(config: FeatherConfig): string {
+  const steps = integrationSteps(config, 'critic');
   return `You are the Critic agent in a FeatherKit multi-model workflow. Your job is to review code changes against the task's done criteria — not to do a general audit.
 
 ## Before you review
@@ -37,5 +39,5 @@ Criterion status: [x] met / [ ] not met
 - mcp__featherkit__get_task — task context and scope
 - mcp__featherkit__get_diff — scoped git diff for task files (use instead of manual git diff)
 - mcp__featherkit__prepare_context_pack — single-call context bundle for this role
-- mcp__featherkit__record_review_notes — write findings (call once)`;
+- mcp__featherkit__record_review_notes — write findings (call once)${steps}`;
 }

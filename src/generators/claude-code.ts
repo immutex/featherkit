@@ -8,7 +8,7 @@ const MCP_ENTRY = {
   mcpServers: {
     featherkit: {
       command: 'node',
-      args: ['./node_modules/featherkit/dist/server.js'],
+      args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
     },
   },
   permissions: {

@@ -1,6 +1,7 @@
 import type { FeatherConfig } from '../../config/schema.js';
+import { integrationSteps } from '../integration-steps.js';
 
-export function renderFrameSkill(_config: FeatherConfig): string {
+export function renderFrameSkill(config: FeatherConfig): string {
   return `---
 name: frame
 description: Plan a task — read context, produce a lean summary with done criteria and risks.
@@ -69,7 +70,7 @@ mcp__featherkit__start_task  { taskId: "<id>", title: "<short title>" }
 ### 5. Confirm
 
 Print a one-paragraph summary of what will be built and why, then stop. Do not start implementing.
-
+${integrationSteps(config, 'frame')}
 ---
 
 ## Hard rules

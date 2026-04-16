@@ -1,6 +1,7 @@
 import type { FeatherConfig } from '../../config/schema.js';
+import { integrationSteps } from '../integration-steps.js';
 
-export function renderBuildSkill(_config: FeatherConfig): string {
+export function renderBuildSkill(config: FeatherConfig): string {
   return `---
 name: build
 description: Implement a task — read the task file, write code, commit small, log progress.
@@ -62,7 +63,7 @@ mcp__featherkit__verify_phase  { phase: "build", taskId: "<id>" }
 - **PASS** → proceed to \`write_handoff\`.
 
 This catches mechanical problems (TypeScript, test failures, scope creep) before they waste tokens on a critic review.
-
+${integrationSteps(config, 'build')}
 ---
 
 ## Hard rules

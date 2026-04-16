@@ -109,7 +109,7 @@ describe('renderClaudeMd', () => {
       integrations: { linear: true, github: false, context7: false, webSearch: false },
     });
     const out = renderClaudeMd(config);
-    expect(out).toContain('linear');
+    expect(out).toContain('Linear');
   });
 
   it('does not mention disabled integrations in the integrations section', () => {
@@ -178,7 +178,7 @@ describe('renderOpenCodeConfig', () => {
     const parsed = JSON.parse(renderOpenCodeConfig(makeConfig()));
     expect(parsed.mcp?.featherkit).toBeDefined();
     expect(parsed.mcp.featherkit.command).toBe('node');
-    expect(parsed.mcp.featherkit.args).toContain('./node_modules/featherkit/dist/server.js');
+    expect(parsed.mcp.featherkit.args).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
   });
 
   it('includes agent definitions', () => {

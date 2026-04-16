@@ -1,6 +1,8 @@
 import type { FeatherConfig } from '../../config/schema.js';
+import { integrationSteps } from '../integration-steps.js';
 
-export function renderSyncSkill(_config: FeatherConfig): string {
+export function renderSyncSkill(config: FeatherConfig): string {
+  const steps = integrationSteps(config, 'sync');
   return `---
 name: sync
 description: Write a self-contained handoff so the next role can resume without losing context.
@@ -89,5 +91,5 @@ Print "Handoff written: <from> → <to>" and stop.
 - \`get_task\` and \`get_active_focus\` together give full context — don't read source files during sync
 - One \`write_handoff\` call is all you need — it updates both state and latest-handoff.md
 - Keep handoff notes compact — the next role will read the source files themselves
-`;
+${steps}`;
 }

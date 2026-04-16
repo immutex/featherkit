@@ -1,6 +1,8 @@
 import type { FeatherConfig } from '../../config/schema.js';
+import { integrationSteps } from '../integration-steps.js';
 
-export function renderCriticSkill(_config: FeatherConfig): string {
+export function renderCriticSkill(config: FeatherConfig): string {
+  const steps = integrationSteps(config, 'critic');
   return `---
 name: critic
 description: Review code changes against the task goal — find bugs, gaps, and missing tests.
@@ -98,5 +100,5 @@ Format your notes as:
 - For a single-call context bundle: \`prepare_context_pack { forRole: "critic", taskId: "<id>" }\` replaces \`get_task\` + \`get_diff\` with one call
 - One entry in \`record_review_notes\` is enough — don't call it repeatedly
 - If a criterion is clearly met, note it and move on
-`;
+${steps}`;
 }
