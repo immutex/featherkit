@@ -49,9 +49,19 @@ mcp__featheragents__append_progress  {
 
 Keep messages factual and brief: "Implemented state-io atomicWrite", not "Made great progress on the file writing system".
 
-### 5. Verify done criteria
+### 5. Verify before handing off
 
-Before declaring done, check each criterion in the task file explicitly. Run tests. If something is unmet, finish it or note it as a blocker.
+Before writing the handoff, run the mechanical phase gate:
+
+\`\`\`
+mcp__featheragents__verify_phase  { phase: "build", taskId: "<id>" }
+\`\`\`
+
+- **FAIL** → fix the issues before calling \`write_handoff\`. TypeScript errors and test failures must be resolved — don't send broken code to a critic session.
+- **PASS WITH WARNINGS** → review each warning. Scope creep warnings (files changed outside the task) should be acknowledged in the handoff notes or the task's Files list updated.
+- **PASS** → proceed to \`write_handoff\`.
+
+This catches mechanical problems (TypeScript, test failures, scope creep) before they waste tokens on a critic review.
 
 ---
 

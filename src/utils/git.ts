@@ -45,6 +45,20 @@ export function parseSectionFromTaskMd(markdown: string, heading: string): strin
     .trim();
 }
 
+/**
+ * Extract changed file paths from a git diff output.
+ * Parses `diff --git a/... b/<path>` header lines — robust for deletions
+ * where `+++ b/dev/null` would appear.
+ */
+export function parseDiffFilePaths(diff: string): string[] {
+  const result: string[] = [];
+  for (const line of diff.split('\n')) {
+    const match = line.match(/^diff --git a\/.+ b\/(.+)$/);
+    if (match?.[1]) result.push(match[1]);
+  }
+  return result;
+}
+
 export interface GitDiffResult {
   diff: string;
   files: string[];

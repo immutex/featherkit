@@ -33,6 +33,7 @@ Use \`mcp__featheragents__*\` tools for project state:
 - \`list_tasks\` — all tasks and statuses
 - \`get_diff\` — scoped git diff for the current task's files (use in critic sessions)
 - \`prepare_context_pack\` — single-call context bundle for a specific role (frame/build/critic/sync)
+- \`verify_phase\` — deterministic gate: scope check, tsc, tests — call before write_handoff
 
 ### Skills
 - \`/frame\` — plan a task (read context, produce summary + done criteria)

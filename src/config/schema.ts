@@ -50,6 +50,21 @@ export type Handoff = z.infer<typeof HandoffSchema>;
 export const TaskStatusSchema = z.enum(['pending', 'active', 'blocked', 'done']);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
+export const VerificationCheckSchema = z.object({
+  name: z.string(),
+  status: z.enum(['pass', 'warn', 'fail']),
+  message: z.string(),
+});
+export type VerificationCheck = z.infer<typeof VerificationCheckSchema>;
+
+export const VerificationResultSchema = z.object({
+  phase: z.enum(['frame', 'build', 'critic']),
+  verdict: z.enum(['pass', 'warn', 'fail']),
+  checks: z.array(VerificationCheckSchema),
+  timestamp: z.string(),
+});
+export type VerificationResult = z.infer<typeof VerificationResultSchema>;
+
 export const TaskEntrySchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -59,6 +74,7 @@ export const TaskEntrySchema = z.object({
   progress: z.array(ProgressEntrySchema),
   handoff: HandoffSchema.optional(),
   reviewNotes: z.string().optional(),
+  verifications: z.array(VerificationResultSchema).optional(),
 });
 export type TaskEntry = z.infer<typeof TaskEntrySchema>;
 

@@ -9,6 +9,7 @@ import { taskCommand } from './commands/task.js';
 import { handoffCommand } from './commands/handoff.js';
 import { reviewCommand } from './commands/review.js';
 import { skillsCommand } from './commands/skills-install.js';
+import { verifyCommand } from './commands/verify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,5 +36,6 @@ program.addCommand(taskCommand);
 program.addCommand(handoffCommand);
 program.addCommand(reviewCommand);
 program.addCommand(skillsCommand);
+program.addCommand(verifyCommand);
 
 program.parse();

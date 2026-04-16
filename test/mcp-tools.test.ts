@@ -81,7 +81,7 @@ async function teardownTmpProject() {
 // ── Tool registration ─────────────────────────────────────────────────────────
 
 describe('registerAllTools', () => {
-  it('registers all 11 expected tools', async () => {
+  it('registers all 12 expected tools', async () => {
     const { registerAllTools } = await import('../src/mcp/tools/index.js');
     const server = new MockMcpServer();
     registerAllTools(server as unknown as McpServer);
@@ -98,6 +98,7 @@ describe('registerAllTools', () => {
       'list_tasks',
       'get_diff',
       'prepare_context_pack',
+      'verify_phase',
     ];
 
     for (const name of expectedTools) {
@@ -785,5 +786,118 @@ describe('list_tasks dependency annotations', () => {
 
     const text = await callTool(server, 'list_tasks', {});
     expect(text).not.toContain('blocked-by');
+  });
+});
+
+// ── verify_phase ──────────────────────────────────────────────────────────────
+
+describe('verify_phase', () => {
+  beforeEach(setupTmpProject);
+  afterEach(teardownTmpProject);
+
+  it('returns error when no task active and no taskId given', async () => {
+    const { registerVerifyPhase } = await import('../src/mcp/tools/verify-phase.js');
+    const server = new MockMcpServer();
+    registerVerifyPhase(server as unknown as McpServer);
+
+    const text = await callTool(server, 'verify_phase', { phase: 'frame' });
+    expect(text).toContain('No task specified');
+  });
+
+  it('runs frame verification and returns a verdict', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-001';
+    state.tasks.push({ id: 'FEAT-001', title: 'Test', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    // Create a task markdown file
+    await mkdir(join(tmpDir, 'project-docs', 'tasks'), { recursive: true });
+    await writeFile(
+      join(tmpDir, 'project-docs', 'tasks', 'FEAT-001.md'),
+      '# Task\n\n## Goal\nDo something.\n\n## Files\nsrc/a.ts\n\n## Constraints\nNone.\n\n## Risks\nNone.\n\n## Done Criteria\n- [ ] done\n',
+      'utf8'
+    );
+
+    const { registerVerifyPhase } = await import('../src/mcp/tools/verify-phase.js');
+    const server = new MockMcpServer();
+    registerVerifyPhase(server as unknown as McpServer);
+
+    const text = await callTool(server, 'verify_phase', { phase: 'frame' });
+    expect(text).toMatch(/Verdict:/);
+    expect(text).toMatch(/PASS|FAIL|WARNINGS/);
+  });
+
+  it('runs critic verification and fails without review notes', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-002';
+    state.tasks.push({ id: 'FEAT-002', title: 'Test', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerVerifyPhase } = await import('../src/mcp/tools/verify-phase.js');
+    const server = new MockMcpServer();
+    registerVerifyPhase(server as unknown as McpServer);
+
+    const text = await callTool(server, 'verify_phase', { phase: 'critic' });
+    expect(text).toContain('FAIL');
+    expect(text).toContain('empty or missing');
+  });
+
+  it('persists verification result to task.verifications in state', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-003';
+    state.tasks.push({ id: 'FEAT-003', title: 'Test', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerVerifyPhase } = await import('../src/mcp/tools/verify-phase.js');
+    const server = new MockMcpServer();
+    registerVerifyPhase(server as unknown as McpServer);
+
+    await callTool(server, 'verify_phase', { phase: 'critic' });
+
+    const updated = await loadState(undefined, tmpDir);
+    const task = updated.tasks.find((t) => t.id === 'FEAT-003');
+    expect(task?.verifications).toBeDefined();
+    expect(task?.verifications).toHaveLength(1);
+    expect(task?.verifications?.[0]?.phase).toBe('critic');
+  });
+
+  it('resolves taskId from currentTask when not provided', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-004';
+    state.tasks.push({
+      id: 'FEAT-004',
+      title: 'Test',
+      status: 'active',
+      progress: [],
+      reviewNotes: '## Blockers\n\n## Suggestions\n- minor\n',
+    });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerVerifyPhase } = await import('../src/mcp/tools/verify-phase.js');
+    const server = new MockMcpServer();
+    registerVerifyPhase(server as unknown as McpServer);
+
+    const text = await callTool(server, 'verify_phase', { phase: 'critic' });
+    // Should have run the critic check, not the "no task specified" error
+    expect(text).not.toContain('No task specified');
+    expect(text).toMatch(/Verdict:/);
+  });
+
+  it('appends multiple verifications over successive calls', async () => {
+    const state = freshState();
+    state.currentTask = 'FEAT-005';
+    state.tasks.push({ id: 'FEAT-005', title: 'Test', status: 'active', progress: [] });
+    await saveState(state, undefined, tmpDir);
+
+    const { registerVerifyPhase } = await import('../src/mcp/tools/verify-phase.js');
+    const server = new MockMcpServer();
+    registerVerifyPhase(server as unknown as McpServer);
+
+    await callTool(server, 'verify_phase', { phase: 'critic' });
+    await callTool(server, 'verify_phase', { phase: 'critic' });
+
+    const updated = await loadState(undefined, tmpDir);
+    const task = updated.tasks.find((t) => t.id === 'FEAT-005');
+    expect(task?.verifications).toHaveLength(2);
   });
 });

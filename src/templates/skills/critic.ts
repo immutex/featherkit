@@ -24,6 +24,8 @@ mcp__featheragents__get_task  { taskId: "<id>" }
 
 Read the goal, done criteria, progress log, and any existing review notes. This is your review scope — stay within it.
 
+> **Verification check:** The build agent should have called \`verify_phase { phase: "build" }\` before handing off. If the handoff notes don't mention verification results, note this — it means TypeScript, tests, and scope haven't been mechanically confirmed. You may want to flag it as a process gap in your review notes.
+
 ### 2. Get the diff
 
 \`\`\`

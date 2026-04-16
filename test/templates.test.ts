@@ -223,6 +223,7 @@ const MCP_TOOLS = [
   'mcp__featheragents__write_handoff',
   'mcp__featheragents__get_diff',
   'mcp__featheragents__prepare_context_pack',
+  'mcp__featheragents__verify_phase',
 ];
 
 describe('renderFrameSkill', () => {

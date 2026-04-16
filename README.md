@@ -11,7 +11,7 @@
 [![Node.js](https://img.shields.io/node/v/featheragents?color=brightgreen)](https://nodejs.org)
 [![GitHub stars](https://img.shields.io/github/stars/immutex/featheragents?style=social)](https://github.com/immutex/featheragents)
 
-[Quick Start](#quick-start) · [How It Works](#how-it-works) · [CLI Reference](#cli-reference) · [MCP Tools](#mcp-tools) · [Architecture](#architecture) · [Philosophy](#philosophy)
+[Quick Start](#quick-start) · [How It Works](#how-it-works) · [Phase Gates](#deterministic-phase-gates) · [CLI Reference](#cli-reference) · [MCP Tools](#mcp-tools) · [Architecture](#architecture) · [Philosophy](#philosophy)
 
 </div>
 
@@ -29,6 +29,8 @@ Multi-model agentic workflows in practice look like this:
 | Over-engineering: frameworks, planning phases, forced ceremony | Four stages. Skip any of them on small tasks. |
 | Critic reviews the entire codebase | Critic sees the diff + task file only |
 | Each agent decides its own "done" criteria | Task file defines done criteria before a single line of code is written |
+| Build sends broken code to critic — TypeScript errors, test failures caught 10k tokens later | `verify_phase` catches broken builds before handoff — zero cost, zero AI |
+| Agent touches files outside task scope — critic wastes tokens on irrelevant diff | Scope creep detected before critic ever sees the diff |
 
 ---
 
@@ -53,9 +55,55 @@ FeatherAgents installs a lightweight 4-stage loop into your project. Models foll
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+**Phase gates run between stages.** Before the build agent hands off, it calls `verify_phase` — a deterministic check that catches TypeScript errors, test failures, and scope creep before they waste tokens on a critic session. See [Deterministic Phase Gates](#deterministic-phase-gates).
+
 **Skip stages freely.** A one-line bugfix doesn't need a frame phase. A high-stakes migration might add a second critic pass. The loop is a guideline, not a gate.
 
 **Mix models.** Run Claude Code for planning and critique, GPT-4o or Codex for implementation. Each model gets only the context relevant to its role.
+
+---
+
+## Deterministic Phase Gates
+
+The headline feature. Every other agentic workflow tool sends work directly from one AI to the next — if the build agent changed the wrong files or TypeScript is broken, the critic finds out the hard way after spending 10k tokens.
+
+**featheragents intercepts.** Before a build agent writes its handoff, it calls `verify_phase` — a zero-cost, zero-AI mechanical check:
+
+```
+featheragents verify build FEAT-001
+
+Verifying build phase for FEAT-001...
+
+✓ Task file — project-docs/tasks/FEAT-001.md
+✓ Goal section — non-empty
+✓ Files section — 2 file(s) listed
+✓ Done Criteria — 3 items
+✓ Scope: src/mcp/tools/get-diff.ts — in task file
+✓ Scope: src/mcp/tools/index.ts — in task file
+⚠ Scope: test/mcp-tools.test.ts — not in task file (scope creep or update ## Files list)
+✓ TypeScript — tsc --noEmit — 0 errors
+✓ Tests — vitest run — 210 passed
+
+Verdict: PASS WITH WARNINGS
+  ⚠ test/mcp-tools.test.ts changed outside task scope
+```
+
+Three gates, one command:
+
+| Gate | When | Checks |
+|------|------|--------|
+| `featheragents verify frame <id>` | After framing, before build | Task file exists, Goal/Files/Done Criteria/Risks non-empty |
+| `featheragents verify build <id>` | After build, before critic | Git scope (scope creep detection), TypeScript, tests, done criteria status |
+| `featheragents verify critic <id>` | After critic, before sync | Review notes non-empty, `## Blockers` section present |
+
+**Scope creep detection** is the differentiator. When a build agent touches files outside the task's `## Files` list, `verify_phase` flags it before the critic ever sees the diff. No other tool catches this.
+
+**Agents call it too.** The `verify_phase` MCP tool gives build agents the same gate over JSON-RPC. The build skill instructs the agent to call `mcp__featheragents__verify_phase` before `write_handoff`. If it fails, the agent fixes the issue — it never leaves broken code for the critic.
+
+**Flags:**
+- `--json` — machine-readable output
+- `--fix` — advisory mode: TypeScript failures downgraded to warnings, exits 0
+- `--base <ref>` — git ref for scope check (default: `HEAD`)
 
 ---
 
@@ -114,6 +162,9 @@ Use `--preset <name>` with `featheragents init` to skip the interactive selector
 | `featheragents task start <id>` | Create and activate a task |
 | `featheragents task sync` | Show current task status and progress |
 | `featheragents task log <id>` | Full timeline for a task — progress, handoff, review notes |
+| `featheragents verify frame <id>` | Gate: task file completeness before build |
+| `featheragents verify build <id>` | Gate: git scope + TypeScript + tests before critic |
+| `featheragents verify critic <id>` | Gate: review notes completeness before sync |
 | `featheragents handoff write` | Write a role-to-role handoff note |
 | `featheragents review prepare` | Generate a review checklist from task progress |
 | `featheragents mcp install` | Re-register the MCP server with configured clients |
@@ -125,7 +176,7 @@ Most commands support `--help` for flags and non-interactive options (e.g. `--fr
 
 ## MCP Tools
 
-The local MCP server exposes 9 tools to your coding agents. Register once via `featheragents init` or `featheragents mcp install`, then every model in your workflow can read and write shared state.
+The local MCP server exposes 12 tools to your coding agents. Register once via `featheragents init` or `featheragents mcp install`, then every model in your workflow can read and write shared state.
 
 | Tool | What it does |
 |------|-------------|
@@ -140,6 +191,7 @@ The local MCP server exposes 9 tools to your coding agents. Register once via `f
 | `record_decision` | Persist a named architectural decision with rationale |
 | `get_diff` | Scoped git diff for the current task's files — use in critic sessions instead of manual `git diff` |
 | `prepare_context_pack` | Single-call role-specific context bundle (goal + diff + handoff + conventions) |
+| `verify_phase` | Deterministic phase gate — scope check, TypeScript, tests. Call before `write_handoff`. |
 
 The server runs as a local stdio process — no daemon, no port, no hosted service. It's spawned by your client (Claude Code or OpenCode) on demand.
 

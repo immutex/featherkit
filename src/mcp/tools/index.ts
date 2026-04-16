@@ -11,6 +11,7 @@ import { registerRecordDecision } from './record-decision.js';
 import { registerListTasks } from './list-tasks.js';
 import { registerGetDiff } from './get-diff.js';
 import { registerPrepareContextPack } from './prepare-context-pack.js';
+import { registerVerifyPhase } from './verify-phase.js';
 
 export function registerAllTools(server: McpServer): void {
   registerGetProjectBrief(server);
@@ -24,4 +25,5 @@ export function registerAllTools(server: McpServer): void {
   registerListTasks(server);
   registerGetDiff(server);
   registerPrepareContextPack(server);
+  registerVerifyPhase(server);
 }

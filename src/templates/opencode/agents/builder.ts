@@ -21,6 +21,14 @@ Read the goal, files list, done criteria, and risks. If done criteria are missin
 
 Check every done criterion explicitly. If any are unmet, finish them or flag them as blockers. Don't declare done with open criteria.
 
+Before writing the handoff, run the phase gate:
+
+mcp__featheragents__verify_phase { phase: "build", taskId: "<id>" }
+
+- FAIL → fix the issues (TypeScript errors, test failures) before handing off.
+- PASS WITH WARNINGS → note scope warnings in the handoff.
+- PASS → proceed to write_handoff.
+
 ## Hard rules
 
 - Do not refactor code outside the task scope.
@@ -33,5 +41,6 @@ Check every done criterion explicitly. If any are unmet, finish them or flag the
 
 - mcp__featheragents__get_task — read task details
 - mcp__featheragents__append_progress — log completed steps
-- mcp__featheragents__get_project_brief — project architecture (load once if needed)`;
+- mcp__featheragents__get_project_brief — project architecture (load once if needed)
+- mcp__featheragents__verify_phase — mechanical gate before handoff (scope, TS, tests)`;
 }
