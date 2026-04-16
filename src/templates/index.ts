@@ -10,7 +10,7 @@ import { renderCriticAgent } from './opencode/agents/critic.js';
 import { renderSyncerAgent } from './opencode/agents/syncer.js';
 import { renderProjectState } from './project-state.js';
 import { renderProjectDocs } from './project-docs.js';
-import { renderFeatheragentsConfig } from './featheragents-config.js';
+import { renderFeatherkitConfig } from './featherkit-config.js';
 
 export interface TemplateFile {
   relativePath: string;
@@ -55,8 +55,8 @@ export function getAllTemplates(config: FeatherConfig): TemplateFile[] {
   });
 
   files.push({
-    relativePath: 'featheragents/config.json',
-    content: renderFeatheragentsConfig(config),
+    relativePath: 'featherkit/config.json',
+    content: renderFeatherkitConfig(config),
   });
 
   // Project docs (returns multiple files)

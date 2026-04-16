@@ -21,8 +21,8 @@ Use \`/frame\` at the start of any task that involves more than one file or more
 Call these MCP tools in order:
 
 \`\`\`
-mcp__featheragents__get_project_brief
-mcp__featheragents__get_active_focus
+mcp__featherkit__get_project_brief
+mcp__featherkit__get_active_focus
 \`\`\`
 
 Read what comes back. If there's an existing task file at \`project-docs/tasks/<id>.md\`, read that too.
@@ -63,7 +63,7 @@ Create or update \`project-docs/tasks/<id>.md\`:
 ### 4. Register the task
 
 \`\`\`
-mcp__featheragents__start_task  { taskId: "<id>", title: "<short title>" }
+mcp__featherkit__start_task  { taskId: "<id>", title: "<short title>" }
 \`\`\`
 
 ### 5. Confirm

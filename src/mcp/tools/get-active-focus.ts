@@ -22,7 +22,7 @@ export function registerGetActiveFocus(server: McpServer): void {
           content: [
             {
               type: 'text' as const,
-              text: 'No current-focus.md found. Run `featheragents init` to set up project docs.',
+              text: 'No current-focus.md found. Run `featherkit init` to set up project docs.',
             },
           ],
         };

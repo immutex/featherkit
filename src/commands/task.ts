@@ -61,7 +61,7 @@ export async function runTaskSync(cwd: string): Promise<void> {
   log.bold('Project state\n');
 
   if (!state.currentTask) {
-    log.dim('No active task. Run `featheragents task start <id>`.');
+    log.dim('No active task. Run `featherkit task start <id>`.');
     log.blank();
     return;
   }

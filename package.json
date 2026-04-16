@@ -1,10 +1,10 @@
 {
-  "name": "featheragents",
+  "name": "featherkit",
   "version": "0.1.0",
   "description": "Lean multi-model agentic coding workflow — bootstraps project structure, skills, and a local MCP server for coordinating Claude Code and OpenCode.",
   "type": "module",
   "bin": {
-    "featheragents": "./dist/cli.js"
+    "featherkit": "./dist/cli.js"
   },
   "files": [
     "dist",
@@ -33,11 +33,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/featheragents/featheragents.git"
+    "url": "https://github.com/immutex/featherkit.git"
   },
-  "homepage": "https://github.com/featheragents/featheragents#readme",
+  "homepage": "https://github.com/immutex/featherkit#readme",
   "bugs": {
-    "url": "https://github.com/featheragents/featheragents/issues"
+    "url": "https://github.com/immutex/featherkit/issues"
   },
   "license": "MIT",
   "devDependencies": {

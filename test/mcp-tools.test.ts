@@ -60,7 +60,7 @@ async function setupTmpProject() {
 
   // Write a config
   const config = defaultConfig('mcp-test-project');
-  const configDir = join(tmpDir, 'featheragents');
+  const configDir = join(tmpDir, 'featherkit');
   await mkdir(configDir, { recursive: true });
   await writeFile(join(configDir, 'config.json'), JSON.stringify(config), 'utf8');
 

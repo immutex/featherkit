@@ -34,7 +34,7 @@ export async function runInit(cwd: string, options: InitOptions): Promise<void> 
 async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherConfig> {
   const dirName = basename(cwd);
 
-  log.bold('\nFeatherAgents init\n');
+  log.bold('\nFeatherKit init\n');
 
   // 1. Project name
   const projectName = await input({
@@ -202,7 +202,7 @@ export async function scaffoldFiles(
   }
 
   log.blank();
-  log.success('Done. Run `featheragents doctor` to verify the setup.');
+  log.success('Done. Run `featherkit doctor` to verify the setup.');
 }
 
 // ── Commander command ─────────────────────────────────────────────────────────

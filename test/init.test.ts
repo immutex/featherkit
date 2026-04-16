@@ -63,7 +63,7 @@ describe('scaffoldFiles — both clients', () => {
     const ocPath = join(tmpDir, '.opencode', 'opencode.json');
     expect(existsSync(ocPath)).toBe(true);
     const parsed = JSON.parse(await readFile(ocPath, 'utf8'));
-    expect(parsed.mcp?.featheragents).toBeDefined();
+    expect(parsed.mcp?.featherkit).toBeDefined();
   });
 
   it('creates a valid state.json', async () => {
@@ -75,9 +75,9 @@ describe('scaffoldFiles — both clients', () => {
     expect(parsed.tasks).toEqual([]);
   });
 
-  it('creates featheragents/config.json', async () => {
+  it('creates featherkit/config.json', async () => {
     await scaffoldFiles(tmpDir, config, false);
-    const cfgPath = join(tmpDir, 'featheragents', 'config.json');
+    const cfgPath = join(tmpDir, 'featherkit', 'config.json');
     expect(existsSync(cfgPath)).toBe(true);
     const parsed = JSON.parse(await readFile(cfgPath, 'utf8'));
     expect(parsed.projectName).toBe('init-test-project');
@@ -181,9 +181,9 @@ describe('runDoctor', () => {
 
   it('returns false when state.json is missing', async () => {
     const config = defaultConfig('doctor-test');
-    await mkdir(join(tmpDir, 'featheragents'), { recursive: true });
+    await mkdir(join(tmpDir, 'featherkit'), { recursive: true });
     await writeFile(
-      join(tmpDir, 'featheragents', 'config.json'),
+      join(tmpDir, 'featherkit', 'config.json'),
       JSON.stringify(config),
       'utf8'
     );
@@ -195,8 +195,8 @@ describe('runDoctor', () => {
     const config = defaultConfig('doctor-test');
 
     // Write config and state but not skill files
-    await mkdir(join(tmpDir, 'featheragents'), { recursive: true });
-    await writeFile(join(tmpDir, 'featheragents', 'config.json'), JSON.stringify(config), 'utf8');
+    await mkdir(join(tmpDir, 'featherkit'), { recursive: true });
+    await writeFile(join(tmpDir, 'featherkit', 'config.json'), JSON.stringify(config), 'utf8');
     await mkdir(join(tmpDir, '.project-state'), { recursive: true });
     await writeFile(
       join(tmpDir, '.project-state', 'state.json'),
@@ -215,17 +215,17 @@ describe('runDoctor', () => {
     await scaffoldFiles(tmpDir, config, false);
 
     // runDoctor checks for .opencode MCP entry — opencode.json is created by scaffoldFiles
-    // But it also checks node_modules/featheragents/dist/server.js which won't exist in test env.
+    // But it also checks node_modules/featherkit/dist/server.js which won't exist in test env.
     // That's a real check that intentionally fails outside a real install.
     const result = await runDoctor(tmpDir);
-    // We expect false because node_modules/featheragents isn't installed in the tmp dir
+    // We expect false because node_modules/featherkit isn't installed in the tmp dir
     expect(typeof result).toBe('boolean');
   });
 
   it('detects invalid config schema', async () => {
-    await mkdir(join(tmpDir, 'featheragents'), { recursive: true });
+    await mkdir(join(tmpDir, 'featherkit'), { recursive: true });
     await writeFile(
-      join(tmpDir, 'featheragents', 'config.json'),
+      join(tmpDir, 'featherkit', 'config.json'),
       JSON.stringify({ version: 1 }), // missing required fields
       'utf8'
     );

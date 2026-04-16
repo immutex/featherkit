@@ -1,4 +1,4 @@
-# FeatherAgents
+# FeatherKit
 
 Lean multi-model workflow CLI — bootstraps project structure, skills, and a local MCP server for coordinating coding agents across Claude Code and OpenCode.
 

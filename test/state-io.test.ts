@@ -169,7 +169,7 @@ describe('loadConfig (state-io)', () => {
 
   it('returns parsed config when file exists', async () => {
     const config: FeatherConfig = defaultConfig('state-io-test');
-    const configDir = join(tmpDir, 'featheragents');
+    const configDir = join(tmpDir, 'featherkit');
     await mkdir(configDir, { recursive: true });
     await writeFile(join(configDir, 'config.json'), JSON.stringify(config), 'utf8');
 
@@ -179,7 +179,7 @@ describe('loadConfig (state-io)', () => {
   });
 
   it('returns null on invalid config JSON', async () => {
-    const configDir = join(tmpDir, 'featheragents');
+    const configDir = join(tmpDir, 'featherkit');
     await mkdir(configDir, { recursive: true });
     await writeFile(join(configDir, 'config.json'), '{ bad json', 'utf8');
 

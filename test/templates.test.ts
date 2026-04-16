@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { getAllTemplates, renderTaskTemplate } from '../src/templates/index.js';
 import { renderClaudeMd } from '../src/templates/claude-md.js';
 import { renderProjectState } from '../src/templates/project-state.js';
-import { renderFeatheragentsConfig } from '../src/templates/featheragents-config.js';
+import { renderFeatherkitConfig } from '../src/templates/featherkit-config.js';
 import { renderOpenCodeConfig } from '../src/templates/opencode/config.js';
 import { renderFrameSkill } from '../src/templates/skills/frame.js';
 import { renderBuildSkill } from '../src/templates/skills/build.js';
@@ -51,10 +51,10 @@ describe('getAllTemplates', () => {
     }
   });
 
-  it('always includes featheragents/config.json', () => {
+  it('always includes featherkit/config.json', () => {
     const files = getAllTemplates(makeConfig());
     const paths = files.map((f) => f.relativePath);
-    expect(paths).toContain('featheragents/config.json');
+    expect(paths).toContain('featherkit/config.json');
   });
 
   it('always includes project-docs files', () => {
@@ -145,23 +145,23 @@ describe('renderProjectState', () => {
 
 // ── Featheragents config ──────────────────────────────────────────────────────
 
-describe('renderFeatheragentsConfig', () => {
+describe('renderFeatherkitConfig', () => {
   it('produces valid JSON', () => {
     const config = makeConfig();
-    const out = renderFeatheragentsConfig(config);
+    const out = renderFeatherkitConfig(config);
     expect(() => JSON.parse(out)).not.toThrow();
   });
 
   it('round-trips through FeatherConfigSchema', () => {
     const config = makeConfig();
-    const out = renderFeatheragentsConfig(config);
+    const out = renderFeatherkitConfig(config);
     const result = FeatherConfigSchema.safeParse(JSON.parse(out));
     expect(result.success).toBe(true);
   });
 
   it('preserves project name', () => {
     const config = makeConfig({ projectName: 'roundtrip-test' });
-    const parsed = JSON.parse(renderFeatheragentsConfig(config));
+    const parsed = JSON.parse(renderFeatherkitConfig(config));
     expect(parsed.projectName).toBe('roundtrip-test');
   });
 });
@@ -174,11 +174,11 @@ describe('renderOpenCodeConfig', () => {
     expect(() => JSON.parse(out)).not.toThrow();
   });
 
-  it('contains featheragents MCP server entry', () => {
+  it('contains featherkit MCP server entry', () => {
     const parsed = JSON.parse(renderOpenCodeConfig(makeConfig()));
-    expect(parsed.mcp?.featheragents).toBeDefined();
-    expect(parsed.mcp.featheragents.command).toBe('node');
-    expect(parsed.mcp.featheragents.args).toContain('./node_modules/featheragents/dist/server.js');
+    expect(parsed.mcp?.featherkit).toBeDefined();
+    expect(parsed.mcp.featherkit.command).toBe('node');
+    expect(parsed.mcp.featherkit.args).toContain('./node_modules/featherkit/dist/server.js');
   });
 
   it('includes agent definitions', () => {
@@ -214,28 +214,28 @@ describe('renderTaskTemplate', () => {
 // ── Skill content (Task 08) ───────────────────────────────────────────────────
 
 const MCP_TOOLS = [
-  'mcp__featheragents__get_project_brief',
-  'mcp__featheragents__get_active_focus',
-  'mcp__featheragents__get_task',
-  'mcp__featheragents__start_task',
-  'mcp__featheragents__append_progress',
-  'mcp__featheragents__record_review_notes',
-  'mcp__featheragents__write_handoff',
-  'mcp__featheragents__get_diff',
-  'mcp__featheragents__prepare_context_pack',
-  'mcp__featheragents__verify_phase',
+  'mcp__featherkit__get_project_brief',
+  'mcp__featherkit__get_active_focus',
+  'mcp__featherkit__get_task',
+  'mcp__featherkit__start_task',
+  'mcp__featherkit__append_progress',
+  'mcp__featherkit__record_review_notes',
+  'mcp__featherkit__write_handoff',
+  'mcp__featherkit__get_diff',
+  'mcp__featherkit__prepare_context_pack',
+  'mcp__featherkit__verify_phase',
 ];
 
 describe('renderFrameSkill', () => {
   it('references get_project_brief and get_active_focus', () => {
     const out = renderFrameSkill(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_project_brief');
-    expect(out).toContain('mcp__featheragents__get_active_focus');
+    expect(out).toContain('mcp__featherkit__get_project_brief');
+    expect(out).toContain('mcp__featherkit__get_active_focus');
   });
 
   it('references start_task', () => {
     const out = renderFrameSkill(makeConfig());
-    expect(out).toContain('mcp__featheragents__start_task');
+    expect(out).toContain('mcp__featherkit__start_task');
   });
 
   it('contains anti-bloat rules', () => {
@@ -257,8 +257,8 @@ describe('renderFrameSkill', () => {
 describe('renderBuildSkill', () => {
   it('references get_task and append_progress', () => {
     const out = renderBuildSkill(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_task');
-    expect(out).toContain('mcp__featheragents__append_progress');
+    expect(out).toContain('mcp__featherkit__get_task');
+    expect(out).toContain('mcp__featherkit__append_progress');
   });
 
   it('has instructions to commit small', () => {
@@ -280,8 +280,8 @@ describe('renderBuildSkill', () => {
 describe('renderCriticSkill', () => {
   it('references get_task and record_review_notes', () => {
     const out = renderCriticSkill(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_task');
-    expect(out).toContain('mcp__featheragents__record_review_notes');
+    expect(out).toContain('mcp__featherkit__get_task');
+    expect(out).toContain('mcp__featherkit__record_review_notes');
   });
 
   it('mentions blockers and suggestions as separate categories', () => {
@@ -305,9 +305,9 @@ describe('renderCriticSkill', () => {
 describe('renderSyncSkill', () => {
   it('references get_task, get_active_focus, and write_handoff', () => {
     const out = renderSyncSkill(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_task');
-    expect(out).toContain('mcp__featheragents__get_active_focus');
-    expect(out).toContain('mcp__featheragents__write_handoff');
+    expect(out).toContain('mcp__featherkit__get_task');
+    expect(out).toContain('mcp__featherkit__get_active_focus');
+    expect(out).toContain('mcp__featherkit__write_handoff');
   });
 
   it('specifies self-contained handoff requirement', () => {
@@ -332,8 +332,8 @@ describe('renderSyncSkill', () => {
 describe('renderBuilderAgent', () => {
   it('references correct MCP tools', () => {
     const out = renderBuilderAgent(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_task');
-    expect(out).toContain('mcp__featheragents__append_progress');
+    expect(out).toContain('mcp__featherkit__get_task');
+    expect(out).toContain('mcp__featherkit__append_progress');
   });
 
   it('is self-contained (no external file references needed)', () => {
@@ -350,8 +350,8 @@ describe('renderBuilderAgent', () => {
 describe('renderCriticAgent', () => {
   it('references get_task and record_review_notes', () => {
     const out = renderCriticAgent(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_task');
-    expect(out).toContain('mcp__featheragents__record_review_notes');
+    expect(out).toContain('mcp__featherkit__get_task');
+    expect(out).toContain('mcp__featherkit__record_review_notes');
   });
 
   it('mentions blocker/suggestion separation', () => {
@@ -364,9 +364,9 @@ describe('renderCriticAgent', () => {
 describe('renderSyncerAgent', () => {
   it('references all three required MCP tools', () => {
     const out = renderSyncerAgent(makeConfig());
-    expect(out).toContain('mcp__featheragents__get_task');
-    expect(out).toContain('mcp__featheragents__get_active_focus');
-    expect(out).toContain('mcp__featheragents__write_handoff');
+    expect(out).toContain('mcp__featherkit__get_task');
+    expect(out).toContain('mcp__featherkit__get_active_focus');
+    expect(out).toContain('mcp__featherkit__write_handoff');
   });
 
   it('specifies word limit for handoff notes', () => {
@@ -389,7 +389,7 @@ describe('skill MCP tool name correctness', () => {
   for (const { name, render } of skills) {
     it(`${name} skill only references known MCP tool names`, () => {
       const out = render(makeConfig());
-      const mentioned = out.match(/mcp__featheragents__\w+/g) ?? [];
+      const mentioned = out.match(/mcp__featherkit__\w+/g) ?? [];
       for (const tool of mentioned) {
         expect(MCP_TOOLS, `Unknown tool "${tool}" in ${name} skill`).toContain(tool);
       }

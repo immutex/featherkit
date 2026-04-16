@@ -7,7 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { registerAllTools } from './tools/index.js';
 
 const server = new McpServer({
-  name: 'featheragents',
+  name: 'featherkit',
   version: '0.1.0',
 });
 
@@ -16,10 +16,10 @@ registerAllTools(server);
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('[featheragents] MCP server started');
+  console.error('[featherkit] MCP server started');
 }
 
 main().catch((err) => {
-  console.error('[featheragents] Fatal error:', err);
+  console.error('[featherkit] Fatal error:', err);
   process.exit(1);
 });

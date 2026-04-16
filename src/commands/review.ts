@@ -11,7 +11,7 @@ export async function runReviewPrepare(cwd: string): Promise<string> {
   const state = await loadState(config.stateDir, cwd);
 
   if (!state.currentTask) {
-    log.warn('No active task. Run `featheragents task start <id>` first.');
+    log.warn('No active task. Run `featherkit task start <id>` first.');
     return '';
   }
 

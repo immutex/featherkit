@@ -25,7 +25,7 @@ try {
 const program = new Command();
 
 program
-  .name('featheragents')
+  .name('featherkit')
   .description('Lean multi-model agentic coding workflow')
   .version(version);
 

@@ -12,16 +12,16 @@ export function renderClaudeMd(config: FeatherConfig): string {
 
   return `# ${config.projectName}
 
-## FeatherAgents Workflow
+## FeatherKit Workflow
 
-This project uses FeatherAgents for multi-model coordination.
+This project uses FeatherKit for multi-model coordination.
 4-stage loop: **Frame → Build → Critique → Sync**
 
 ### Roles & Models
 ${modelLines}
 
 ### MCP Tools Available
-Use \`mcp__featheragents__*\` tools for project state:
+Use \`mcp__featherkit__*\` tools for project state:
 - \`get_project_brief\` — project summary and active focus
 - \`get_active_focus\` — current focus file
 - \`get_task\` — task details and progress

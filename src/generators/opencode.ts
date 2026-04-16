@@ -12,10 +12,10 @@ const CONFIG_PATH = '.opencode/opencode.json';
 function buildMcpEntry(): Record<string, unknown> {
   return {
     mcp: {
-      featheragents: {
+      featherkit: {
         type: 'local',
         command: 'node',
-        args: ['./node_modules/featheragents/dist/server.js'],
+        args: ['./node_modules/featherkit/dist/server.js'],
       },
     },
   };

@@ -1,15 +1,15 @@
 <div align="center">
 
-# 🪶 featheragents
+# 🪶 featherkit
 
 **Lean multi-model agentic coding — without the ceremony**
 
 *Coordinate frontier models. Keep token costs low. Ship faster.*
 
-[![npm version](https://img.shields.io/npm/v/featheragents?color=blue&label=npm)](https://www.npmjs.com/package/featheragents)
+[![npm version](https://img.shields.io/npm/v/featherkit?color=blue&label=npm)](https://www.npmjs.com/package/featherkit)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Node.js](https://img.shields.io/node/v/featheragents?color=brightgreen)](https://nodejs.org)
-[![GitHub stars](https://img.shields.io/github/stars/immutex/featheragents?style=social)](https://github.com/immutex/featheragents)
+[![Node.js](https://img.shields.io/node/v/featherkit?color=brightgreen)](https://nodejs.org)
+[![GitHub stars](https://img.shields.io/github/stars/immutex/featherkit?style=social)](https://github.com/immutex/featherkit)
 
 [Quick Start](#quick-start) · [How It Works](#how-it-works) · [Phase Gates](#deterministic-phase-gates) · [CLI Reference](#cli-reference) · [MCP Tools](#mcp-tools) · [Architecture](#architecture) · [Philosophy](#philosophy)
 
@@ -21,7 +21,7 @@
 
 Multi-model agentic workflows in practice look like this:
 
-| Without featheragents | With featheragents |
+| Without featherkit | With featherkit |
 |-----------------------|--------------------|
 | Giant spec → planner burns 15k tokens re-reading the whole repo | Compact task file → planner reads only what's relevant |
 | Every agent starts from scratch, restating the whole codebase | Shared MCP state — each agent picks up exactly where the last left off |
@@ -36,11 +36,11 @@ Multi-model agentic workflows in practice look like this:
 
 ## How It Works
 
-FeatherAgents installs a lightweight 4-stage loop into your project. Models follow it using Claude Code skills and OpenCode agents. A local MCP server holds shared state so no information is lost between steps.
+FeatherKit installs a lightweight 4-stage loop into your project. Models follow it using Claude Code skills and OpenCode agents. A local MCP server holds shared state so no information is lost between steps.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     featheragents loop                          │
+│                     featherkit loop                          │
 │                                                                 │
 │  /frame           /build           /critic          /sync       │
 │  ───────          ───────          ────────         ──────      │
@@ -67,10 +67,10 @@ FeatherAgents installs a lightweight 4-stage loop into your project. Models foll
 
 The headline feature. Every other agentic workflow tool sends work directly from one AI to the next — if the build agent changed the wrong files or TypeScript is broken, the critic finds out the hard way after spending 10k tokens.
 
-**featheragents intercepts.** Before a build agent writes its handoff, it calls `verify_phase` — a zero-cost, zero-AI mechanical check:
+**featherkit intercepts.** Before a build agent writes its handoff, it calls `verify_phase` — a zero-cost, zero-AI mechanical check:
 
 ```
-featheragents verify build FEAT-001
+featherkit verify build FEAT-001
 
 Verifying build phase for FEAT-001...
 
@@ -92,13 +92,13 @@ Three gates, one command:
 
 | Gate | When | Checks |
 |------|------|--------|
-| `featheragents verify frame <id>` | After framing, before build | Task file exists, Goal/Files/Done Criteria/Risks non-empty |
-| `featheragents verify build <id>` | After build, before critic | Git scope (scope creep detection), TypeScript, tests, done criteria status |
-| `featheragents verify critic <id>` | After critic, before sync | Review notes non-empty, `## Blockers` section present |
+| `featherkit verify frame <id>` | After framing, before build | Task file exists, Goal/Files/Done Criteria/Risks non-empty |
+| `featherkit verify build <id>` | After build, before critic | Git scope (scope creep detection), TypeScript, tests, done criteria status |
+| `featherkit verify critic <id>` | After critic, before sync | Review notes non-empty, `## Blockers` section present |
 
 **Scope creep detection** is the differentiator. When a build agent touches files outside the task's `## Files` list, `verify_phase` flags it before the critic ever sees the diff. No other tool catches this.
 
-**Agents call it too.** The `verify_phase` MCP tool gives build agents the same gate over JSON-RPC. The build skill instructs the agent to call `mcp__featheragents__verify_phase` before `write_handoff`. If it fails, the agent fixes the issue — it never leaves broken code for the critic.
+**Agents call it too.** The `verify_phase` MCP tool gives build agents the same gate over JSON-RPC. The build skill instructs the agent to call `mcp__featherkit__verify_phase` before `write_handoff`. If it fails, the agent fixes the issue — it never leaves broken code for the critic.
 
 **Flags:**
 - `--json` — machine-readable output
@@ -111,7 +111,7 @@ Three gates, one command:
 
 ```bash
 # In your project directory:
-npx featheragents init
+npx featherkit init
 ```
 
 The interactive wizard will ask:
@@ -124,10 +124,10 @@ Then it scaffolds everything and registers the MCP server automatically.
 
 ```bash
 # Verify the setup:
-featheragents doctor
+featherkit doctor
 
 # Start your first task:
-featheragents task start FEAT-001
+featherkit task start FEAT-001
 
 # Work in Claude Code or OpenCode — /frame, /build, /critic, /sync are ready
 ```
@@ -135,8 +135,8 @@ featheragents task start FEAT-001
 ### Install globally
 
 ```bash
-npm install -g featheragents
-featheragents init
+npm install -g featherkit
+featherkit init
 ```
 
 ### Model presets
@@ -149,7 +149,7 @@ featheragents init
 | `local-first` | Qwen3 (Ollama) | Qwen3 | Qwen3 | Qwen3 |
 | `manual` | you choose | you choose | you choose | you choose |
 
-Use `--preset <name>` with `featheragents init` to skip the interactive selector.
+Use `--preset <name>` with `featherkit init` to skip the interactive selector.
 
 ---
 
@@ -157,18 +157,18 @@ Use `--preset <name>` with `featheragents init` to skip the interactive selector
 
 | Command | Description |
 |---------|-------------|
-| `featheragents init` | Scaffold project structure, install skills, register MCP |
-| `featheragents doctor` | Health check — verify config, files, MCP registration |
-| `featheragents task start <id>` | Create and activate a task |
-| `featheragents task sync` | Show current task status and progress |
-| `featheragents task log <id>` | Full timeline for a task — progress, handoff, review notes |
-| `featheragents verify frame <id>` | Gate: task file completeness before build |
-| `featheragents verify build <id>` | Gate: git scope + TypeScript + tests before critic |
-| `featheragents verify critic <id>` | Gate: review notes completeness before sync |
-| `featheragents handoff write` | Write a role-to-role handoff note |
-| `featheragents review prepare` | Generate a review checklist from task progress |
-| `featheragents mcp install` | Re-register the MCP server with configured clients |
-| `featheragents skills install` | Regenerate skill files from current config |
+| `featherkit init` | Scaffold project structure, install skills, register MCP |
+| `featherkit doctor` | Health check — verify config, files, MCP registration |
+| `featherkit task start <id>` | Create and activate a task |
+| `featherkit task sync` | Show current task status and progress |
+| `featherkit task log <id>` | Full timeline for a task — progress, handoff, review notes |
+| `featherkit verify frame <id>` | Gate: task file completeness before build |
+| `featherkit verify build <id>` | Gate: git scope + TypeScript + tests before critic |
+| `featherkit verify critic <id>` | Gate: review notes completeness before sync |
+| `featherkit handoff write` | Write a role-to-role handoff note |
+| `featherkit review prepare` | Generate a review checklist from task progress |
+| `featherkit mcp install` | Re-register the MCP server with configured clients |
+| `featherkit skills install` | Regenerate skill files from current config |
 
 Most commands support `--help` for flags and non-interactive options (e.g. `--from`, `--to`, `--notes` for `handoff write`).
 
@@ -176,7 +176,7 @@ Most commands support `--help` for flags and non-interactive options (e.g. `--fr
 
 ## MCP Tools
 
-The local MCP server exposes 12 tools to your coding agents. Register once via `featheragents init` or `featheragents mcp install`, then every model in your workflow can read and write shared state.
+The local MCP server exposes 12 tools to your coding agents. Register once via `featherkit init` or `featherkit mcp install`, then every model in your workflow can read and write shared state.
 
 | Tool | What it does |
 |------|-------------|
@@ -217,15 +217,15 @@ your-project/
 │   ├── active/                  # Current focus doc, latest handoff
 │   └── tasks/                   # Individual task files (FEAT-001.md, etc.)
 │
-└── featheragents/
+└── featherkit/
     └── config.json              # Project config (clients, models, integrations)
 ```
 
-**featheragents itself** (`node_modules/featheragents/dist/`):
+**featherkit itself** (`node_modules/featherkit/dist/`):
 
 ```
 dist/
-  cli.js      # featheragents binary (Node 22+, ESM)
+  cli.js      # featherkit binary (Node 22+, ESM)
   server.js   # MCP server (stdio transport)
 ```
 
@@ -233,7 +233,7 @@ dist/
 
 ## What Gets Installed
 
-`featheragents init` writes the following into your project (skips existing files by default):
+`featherkit init` writes the following into your project (skips existing files by default):
 
 - **`.claude/commands/`** — four compact skill files for Claude Code
   - `/frame` — plan a task in one pass, no padding
@@ -243,7 +243,7 @@ dist/
 - **`.opencode/agents/`** — builder, critic, syncer agent definitions
 - **`project-docs/`** — minimal markdown system for context and handoffs
 - **`.project-state/state.json`** — initial empty state
-- **`featheragents/config.json`** — your configuration
+- **`featherkit/config.json`** — your configuration
 - **`.claude/settings.local.json`** — MCP server registration (merged, not overwritten)
 - **`.opencode/opencode.json`** — MCP + agent registration (merged, not overwritten)
 
@@ -253,7 +253,7 @@ dist/
 
 **Token waste is the real problem.** The agentic coding tools that exist today fail in a predictable way: they treat context as free. Giant planning phases. Every agent re-reads the full repo. Critic passes that see thousands of lines irrelevant to the change. These aren't features — they're leaks.
 
-FeatherAgents is built around a single constraint: **each model sees only what it needs to do its job.**
+FeatherKit is built around a single constraint: **each model sees only what it needs to do its job.**
 
 - Frame agent reads: task goals, relevant files, done criteria. Not the whole codebase.
 - Build agent reads: the task file + files it's editing. Not the design doc.
@@ -272,7 +272,7 @@ This isn't a new methodology. It's just applying basic engineering discipline �
 
 - Node.js 22+
 - Claude Code and/or OpenCode (for the slash commands and agents)
-- The models you choose in `featheragents init` (API keys managed by your client)
+- The models you choose in `featherkit init` (API keys managed by your client)
 
 ---
 

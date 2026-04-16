@@ -6,13 +6,13 @@ const SETTINGS_PATH = '.claude/settings.local.json';
 
 const MCP_ENTRY = {
   mcpServers: {
-    featheragents: {
+    featherkit: {
       command: 'node',
-      args: ['./node_modules/featheragents/dist/server.js'],
+      args: ['./node_modules/featherkit/dist/server.js'],
     },
   },
   permissions: {
-    allow: ['mcp__featheragents__*'],
+    allow: ['mcp__featherkit__*'],
   },
 };
 

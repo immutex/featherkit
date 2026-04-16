@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { FeatherConfigSchema, type FeatherConfig } from './schema.js';
 
-const CONFIG_PATH = 'featheragents/config.json';
+const CONFIG_PATH = 'featherkit/config.json';
 
 export function getConfigPath(cwd = process.cwd()): string {
   return join(cwd, CONFIG_PATH);
@@ -14,8 +14,8 @@ export async function loadConfig(cwd = process.cwd()): Promise<FeatherConfig> {
 
   if (!existsSync(configPath)) {
     throw new Error(
-      `No featheragents config found at ${configPath}\n` +
-        `Run \`featheragents init\` to set up your project.`
+      `No featherkit config found at ${configPath}\n` +
+        `Run \`featherkit init\` to set up your project.`
     );
   }
 
@@ -38,7 +38,7 @@ export async function loadConfig(cwd = process.cwd()): Promise<FeatherConfig> {
     const issues = result.error.issues
       .map((i) => `  • ${i.path.join('.')}: ${i.message}`)
       .join('\n');
-    throw new Error(`Invalid featheragents config:\n${issues}`);
+    throw new Error(`Invalid featherkit config:\n${issues}`);
   }
 
   return result.data;

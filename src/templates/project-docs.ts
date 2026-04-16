@@ -58,7 +58,7 @@ None
       relativePath: `${config.docsDir}/active/latest-handoff.md`,
       content: `# Latest Handoff
 
-No handoffs yet. Use \`featheragents handoff write\` or the \`/sync\` skill.
+No handoffs yet. Use \`featherkit handoff write\` or the \`/sync\` skill.
 `,
     },
     {

@@ -79,18 +79,35 @@ export async function checkTaskFile(taskMdPath: string): Promise<VerificationChe
   return checks;
 }
 
+/**
+ * Check that files listed in the task's ## Files section actually exist in the repo.
+ * Warns (not fails) — a file may not exist yet if it's being created.
+ */
+export function checkFilesExist(taskFiles: string[], cwd: string): VerificationCheck[] {
+  if (taskFiles.length === 0) return [];
+  return taskFiles.map((f) => {
+    const exists = existsSync(join(cwd, normPath(f)));
+    return exists
+      ? { name: `File: ${f}`, status: 'pass' as const, message: 'exists in repo' }
+      : { name: `File: ${f}`, status: 'warn' as const, message: 'not found — will be created, or path is wrong' };
+  });
+}
+
 export async function checkGitScope(
   taskFiles: string[],
   base: string,
   cwd: string
-): Promise<VerificationCheck[]> {
+): Promise<{ checks: VerificationCheck[]; diff: string }> {
   // Run unscoped diff to get ALL changed files
   const { diff } = await runGitDiff([], base, cwd);
   const changedFiles = parseDiffFilePaths(diff).map(normPath);
   const normalizedTaskFiles = taskFiles.map(normPath);
 
   if (changedFiles.length === 0 && normalizedTaskFiles.length === 0) {
-    return [{ name: 'Git scope', status: 'warn', message: `No changes found vs ${base} and no files in task` }];
+    return {
+      checks: [{ name: 'Git scope', status: 'warn', message: `No changes found vs ${base} and no files in task` }],
+      diff,
+    };
   }
 
   const checks: VerificationCheck[] = [];
@@ -119,7 +136,7 @@ export async function checkGitScope(
     checks.push({ name: 'Git scope', status: 'warn', message: `No changes found vs ${base}` });
   }
 
-  return checks;
+  return { checks, diff };
 }
 
 export async function checkTypeScript(cwd: string): Promise<VerificationCheck> {
@@ -206,6 +223,149 @@ export function checkDoneCriteriaStatus(md: string): VerificationCheck {
   };
 }
 
+/**
+ * Scan added lines in a git diff for TODO/FIXME/HACK/XXX markers.
+ * Only counts lines that start with '+' (added), not context or removed lines.
+ */
+export function checkTodosInDiff(diff: string): VerificationCheck {
+  // Lines starting with + but not ++ (diff headers)
+  const addedLines = diff.split('\n').filter((l) => /^\+[^+]/.test(l));
+  const todoLines = addedLines.filter((l) => /\b(TODO|FIXME|HACK|XXX)\b/i.test(l));
+  if (todoLines.length === 0) {
+    return { name: 'TODOs in diff', status: 'pass', message: 'none found' };
+  }
+  const samples = todoLines
+    .slice(0, 3)
+    .map((l) => l.replace(/^\+/, '').trim())
+    .join(' | ');
+  return {
+    name: 'TODOs in diff',
+    status: 'warn',
+    message: `${todoLines.length} TODO/FIXME/HACK found — ${samples}`,
+  };
+}
+
+/**
+ * Run language-aware linters. Only runs linters for languages detected in the project.
+ * All linters are optional: if the tool is not installed, returns a warn (not fail).
+ */
+export async function checkLinters(cwd: string): Promise<VerificationCheck[]> {
+  const checks: VerificationCheck[] = [];
+
+  // ── ESLint (JavaScript / TypeScript) ─────────────────────────────────────
+  const eslintConfigs = [
+    '.eslintrc.json', '.eslintrc.js', '.eslintrc.cjs', '.eslintrc.mjs',
+    '.eslintrc.yaml', '.eslintrc.yml',
+    'eslint.config.js', 'eslint.config.ts', 'eslint.config.mjs', 'eslint.config.cjs',
+  ];
+  const hasEslintConfig = eslintConfigs.some((f) => existsSync(join(cwd, f)));
+
+  // Also detect eslintConfig key in package.json
+  let hasEslintInPkg = false;
+  try {
+    const pkgRaw = await readFile(join(cwd, 'package.json'), 'utf8');
+    hasEslintInPkg = /"eslintConfig"\s*:/.test(pkgRaw);
+  } catch { /* no package.json */ }
+
+  if (hasEslintConfig || hasEslintInPkg) {
+    checks.push(await runLinter('ESLint', 'npx', ['eslint', '--format=compact', '--quiet', '.'], cwd, parseEslintOutput));
+  }
+
+  // ── Ruff (Python) ─────────────────────────────────────────────────────────
+  const hasRuffToml = existsSync(join(cwd, '.ruff.toml'));
+  let hasPyprojectRuff = false;
+  if (existsSync(join(cwd, 'pyproject.toml'))) {
+    try {
+      const content = await readFile(join(cwd, 'pyproject.toml'), 'utf8');
+      hasPyprojectRuff = content.includes('[tool.ruff]');
+    } catch { /* skip */ }
+  }
+
+  if (hasRuffToml || hasPyprojectRuff) {
+    checks.push(await runLinter('Ruff', 'ruff', ['check', '.'], cwd, parseGenericOutput));
+  }
+
+  // ── go vet (Go) ───────────────────────────────────────────────────────────
+  if (existsSync(join(cwd, 'go.mod'))) {
+    checks.push(await runLinter('go vet', 'go', ['vet', './...'], cwd, parseGoVetOutput));
+  }
+
+  // ── cargo check (Rust) ───────────────────────────────────────────────────
+  if (existsSync(join(cwd, 'Cargo.toml'))) {
+    checks.push(await runLinter('cargo check', 'cargo', ['check'], cwd, parseCargoOutput));
+  }
+
+  // ── RuboCop (Ruby) ───────────────────────────────────────────────────────
+  if (existsSync(join(cwd, '.rubocop.yml'))) {
+    checks.push(await runLinter('RuboCop', 'rubocop', ['--format=quiet'], cwd, parseGenericOutput));
+  }
+
+  return checks;
+}
+
+// ── Linter runner + parsers ───────────────────────────────────────────────────
+
+type OutputParser = (stdout: string, stderr: string, exitCode: number | null) => VerificationCheck;
+
+async function runLinter(
+  name: string,
+  cmd: string,
+  args: string[],
+  cwd: string,
+  parser: OutputParser
+): Promise<VerificationCheck> {
+  try {
+    const result = await execa(cmd, args, { cwd, reject: false, timeout: 60_000 });
+    const check = parser(result.stdout as string, result.stderr as string, result.exitCode ?? null);
+    return { ...check, name }; // always use the canonical linter name
+  } catch (err: unknown) {
+    // ENOENT = tool not installed
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      return { name, status: 'warn', message: `${cmd} not installed — skipped` };
+    }
+    return { name, status: 'warn', message: `${name} could not run: ${String(err)}` };
+  }
+}
+
+function parseEslintOutput(stdout: string, _stderr: string, exitCode: number | null): VerificationCheck {
+  // ESLint --format=compact: each problem on one line ending in "error" or "warning"
+  const errorLines = stdout.split('\n').filter((l) => /\s+error\s+/i.test(l));
+  if (exitCode === 0 || errorLines.length === 0) {
+    return { name: 'ESLint', status: 'pass', message: '0 errors' };
+  }
+  return {
+    name: 'ESLint',
+    status: 'fail',
+    message: `${errorLines.length} error(s) — ${errorLines[0]?.trim().slice(0, 100) ?? ''}`,
+  };
+}
+
+function parseGoVetOutput(stdout: string, stderr: string, exitCode: number | null): VerificationCheck {
+  const combined = [stdout, stderr].join('\n').trim();
+  if (exitCode === 0) {
+    return { name: 'go vet', status: 'pass', message: 'no issues' };
+  }
+  const firstLine = combined.split('\n')[0]?.trim() ?? 'errors found';
+  return { name: 'go vet', status: 'fail', message: firstLine };
+}
+
+function parseCargoOutput(stdout: string, stderr: string, exitCode: number | null): VerificationCheck {
+  const combined = [stdout, stderr].join('\n');
+  const errorCount = (combined.match(/^error(?!\[E)/gm) ?? []).length;
+  if (exitCode === 0 || errorCount === 0) {
+    return { name: 'cargo check', status: 'pass', message: 'no errors' };
+  }
+  return { name: 'cargo check', status: 'fail', message: `${errorCount} error(s)` };
+}
+
+function parseGenericOutput(_stdout: string, _stderr: string, exitCode: number | null): VerificationCheck {
+  // Used for Ruff and RuboCop: non-zero exit = violations found
+  return exitCode === 0
+    ? { name: 'Linter', status: 'pass', message: 'no issues' }
+    : { name: 'Linter', status: 'fail', message: 'violations found' };
+}
+
 export function checkReviewNotes(reviewNotes: string | undefined): VerificationCheck[] {
   if (!reviewNotes?.trim()) {
     return [{ name: 'Review notes', status: 'fail', message: 'Review notes are empty or missing' }];
@@ -248,8 +408,17 @@ export interface VerifyOptions {
 
 export async function runVerifyFrame(opts: VerifyOptions): Promise<VerificationResult> {
   const taskMdPath = join(opts.docsDir, 'tasks', `${opts.taskId}.md`);
-  const checks = await checkTaskFile(taskMdPath);
-  return buildResult('frame', checks);
+  const taskChecks = await checkTaskFile(taskMdPath);
+
+  // Check that listed files exist in the repo
+  let fileExistChecks: VerificationCheck[] = [];
+  if (existsSync(taskMdPath)) {
+    const md = await readFile(taskMdPath, 'utf8');
+    const taskFiles = parseFilesFromTaskMd(md);
+    fileExistChecks = checkFilesExist(taskFiles, opts.cwd);
+  }
+
+  return buildResult('frame', [...taskChecks, ...fileExistChecks]);
 }
 
 export async function runVerifyBuild(opts: VerifyOptions): Promise<VerificationResult> {
@@ -260,22 +429,29 @@ export async function runVerifyBuild(opts: VerifyOptions): Promise<VerificationR
 
   let scopeChecks: VerificationCheck[] = [];
   let doneCriteriaCheck: VerificationCheck | null = null;
+  let diffForTodos = '';
 
   if (existsSync(taskMdPath)) {
     const md = await readFile(taskMdPath, 'utf8');
     const taskFiles = parseFilesFromTaskMd(md);
-    scopeChecks = await checkGitScope(taskFiles, opts.base ?? 'HEAD', opts.cwd);
+    const scopeResult = await checkGitScope(taskFiles, opts.base ?? 'HEAD', opts.cwd);
+    scopeChecks = scopeResult.checks;
+    diffForTodos = scopeResult.diff;
     doneCriteriaCheck = checkDoneCriteriaStatus(md);
   }
 
   const tsCheck = await checkTypeScript(opts.cwd);
   const testCheck = await checkTestSuite(opts.cwd);
+  const linterChecks = await checkLinters(opts.cwd);
+  const todosCheck = checkTodosInDiff(diffForTodos);
 
   const checks = [
     ...taskChecks,
     ...scopeChecks,
     tsCheck,
     testCheck,
+    ...linterChecks,
+    todosCheck,
     ...(doneCriteriaCheck ? [doneCriteriaCheck] : []),
   ];
 

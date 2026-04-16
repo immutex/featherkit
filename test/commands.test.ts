@@ -31,10 +31,10 @@ function freshState(): ProjectState {
 async function setupProject(tmpDir: string, configOverrides: Partial<FeatherConfig> = {}) {
   const config: FeatherConfig = { ...defaultConfig('cmd-test'), ...configOverrides };
 
-  // featheragents/config.json
-  await mkdir(join(tmpDir, 'featheragents'), { recursive: true });
+  // featherkit/config.json
+  await mkdir(join(tmpDir, 'featherkit'), { recursive: true });
   await writeFile(
-    join(tmpDir, 'featheragents', 'config.json'),
+    join(tmpDir, 'featherkit', 'config.json'),
     JSON.stringify(config),
     'utf8'
   );

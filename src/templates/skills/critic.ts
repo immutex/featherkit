@@ -19,7 +19,7 @@ Use \`/critic\` after implementation is complete, before syncing state or mergin
 ### 1. Load the task
 
 \`\`\`
-mcp__featheragents__get_task  { taskId: "<id>" }
+mcp__featherkit__get_task  { taskId: "<id>" }
 \`\`\`
 
 Read the goal, done criteria, progress log, and any existing review notes. This is your review scope — stay within it.
@@ -29,7 +29,7 @@ Read the goal, done criteria, progress log, and any existing review notes. This 
 ### 2. Get the diff
 
 \`\`\`
-mcp__featheragents__get_diff  { taskId: "<id>" }
+mcp__featherkit__get_diff  { taskId: "<id>" }
 \`\`\`
 
 This returns a git diff scoped to the files listed in the task. Read only what changed — not the entire codebase.
@@ -52,7 +52,7 @@ For each changed area, ask:
 ### 5. Write review notes
 
 \`\`\`
-mcp__featheragents__record_review_notes  {
+mcp__featherkit__record_review_notes  {
   taskId: "<id>",
   notes: "<your findings>"
 }

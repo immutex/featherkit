@@ -23,7 +23,7 @@ export async function runVerify(
 
   const taskId = taskIdArg ?? state.currentTask ?? undefined;
   if (!taskId) {
-    log.error('No task specified and no active task. Pass a task ID or run `featheragents task start <id>`.');
+    log.error('No task specified and no active task. Pass a task ID or run `featherkit task start <id>`.');
     process.exit(1);
   }
 

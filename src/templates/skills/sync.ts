@@ -19,8 +19,8 @@ Use \`/sync\` at the end of any work session — after a build phase, after a cr
 ### 1. Load current state
 
 \`\`\`
-mcp__featheragents__get_task        { taskId: "<id>" }
-mcp__featheragents__get_active_focus
+mcp__featherkit__get_task        { taskId: "<id>" }
+mcp__featherkit__get_active_focus
 \`\`\`
 
 Review what was accomplished this session and what remains.
@@ -34,7 +34,7 @@ Review what was accomplished this session and what remains.
 ### 3. Write the handoff
 
 \`\`\`
-mcp__featheragents__write_handoff  {
+mcp__featherkit__write_handoff  {
   from: "<your role>",
   to: "<next role>",
   taskId: "<id>",

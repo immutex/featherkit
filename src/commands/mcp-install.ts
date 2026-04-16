@@ -12,12 +12,12 @@ export async function runMcpInstall(cwd: string): Promise<void> {
 
   if (includeClaudeCode) {
     await generateClaudeCodeConfig(cwd);
-    log.success('.claude/settings.local.json — featheragents MCP registered');
+    log.success('.claude/settings.local.json — featherkit MCP registered');
   }
 
   if (includeOpenCode) {
     await generateOpenCodeConfig(cwd, config);
-    log.success('.opencode/opencode.json — featheragents MCP registered');
+    log.success('.opencode/opencode.json — featherkit MCP registered');
   }
 }
 
@@ -25,7 +25,7 @@ export const mcpCommand = new Command('mcp');
 
 mcpCommand
   .command('install')
-  .description('Register the featheragents MCP server with configured clients')
+  .description('Register the featherkit MCP server with configured clients')
   .action(async () => {
     try {
       await runMcpInstall(process.cwd());

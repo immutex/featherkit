@@ -185,30 +185,30 @@ describe('loadConfig', () => {
   });
 
   it('throws descriptive error when config file is missing', async () => {
-    await expect(loadConfig(tmpDir)).rejects.toThrow('featheragents init');
+    await expect(loadConfig(tmpDir)).rejects.toThrow('featherkit init');
   });
 
   it('throws on invalid JSON', async () => {
-    const configDir = join(tmpDir, 'featheragents');
+    const configDir = join(tmpDir, 'featherkit');
     await mkdir(configDir, { recursive: true });
     await writeFile(join(configDir, 'config.json'), '{ invalid json }', 'utf8');
     await expect(loadConfig(tmpDir)).rejects.toThrow('Invalid JSON');
   });
 
   it('throws descriptive error listing invalid fields', async () => {
-    const configDir = join(tmpDir, 'featheragents');
+    const configDir = join(tmpDir, 'featherkit');
     await mkdir(configDir, { recursive: true });
     await writeFile(
       join(configDir, 'config.json'),
       JSON.stringify({ version: 1, projectName: '', clients: 'both', models: [], integrations: {} }),
       'utf8'
     );
-    await expect(loadConfig(tmpDir)).rejects.toThrow('Invalid featheragents config');
+    await expect(loadConfig(tmpDir)).rejects.toThrow('Invalid featherkit config');
   });
 
   it('returns a valid parsed config', async () => {
     const config = defaultConfig('test-proj');
-    const configDir = join(tmpDir, 'featheragents');
+    const configDir = join(tmpDir, 'featherkit');
     await mkdir(configDir, { recursive: true });
     await writeFile(join(configDir, 'config.json'), JSON.stringify(config), 'utf8');
     const loaded = await loadConfig(tmpDir);

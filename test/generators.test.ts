@@ -60,13 +60,13 @@ describe('deepMerge', () => {
     };
     const incoming = {
       mcpServers: {
-        featheragents: { command: 'node', args: ['./dist/server.js'] },
+        featherkit: { command: 'node', args: ['./dist/server.js'] },
       },
     };
     const result = deepMerge(existing, incoming);
     const servers = result.mcpServers as Record<string, unknown>;
     expect(servers['other']).toBeDefined();
-    expect(servers['featheragents']).toBeDefined();
+    expect(servers['featherkit']).toBeDefined();
   });
 });
 
@@ -90,21 +90,21 @@ describe('generateClaudeCodeConfig', () => {
     expect(raw).toBeTruthy();
   });
 
-  it('registers featheragents MCP server', async () => {
+  it('registers featherkit MCP server', async () => {
     await generateClaudeCodeConfig(tmpDir);
     const raw = await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.mcpServers?.featheragents?.command).toBe('node');
-    expect(parsed.mcpServers?.featheragents?.args).toContain(
-      './node_modules/featheragents/dist/server.js'
+    expect(parsed.mcpServers?.featherkit?.command).toBe('node');
+    expect(parsed.mcpServers?.featherkit?.args).toContain(
+      './node_modules/featherkit/dist/server.js'
     );
   });
 
-  it('adds mcp__featheragents__* to permissions.allow', async () => {
+  it('adds mcp__featherkit__* to permissions.allow', async () => {
     await generateClaudeCodeConfig(tmpDir);
     const raw = await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.permissions?.allow).toContain('mcp__featheragents__*');
+    expect(parsed.permissions?.allow).toContain('mcp__featherkit__*');
   });
 
   it('preserves existing MCP servers', async () => {
@@ -123,7 +123,7 @@ describe('generateClaudeCodeConfig', () => {
     const raw = await readFile(join(claudeDir, 'settings.local.json'), 'utf8');
     const parsed = JSON.parse(raw);
     expect(parsed.mcpServers?.other).toBeDefined();
-    expect(parsed.mcpServers?.featheragents).toBeDefined();
+    expect(parsed.mcpServers?.featherkit).toBeDefined();
   });
 
   it('preserves existing non-MCP settings', async () => {
@@ -182,15 +182,15 @@ describe('generateOpenCodeConfig', () => {
     expect(raw).toBeTruthy();
   });
 
-  it('registers featheragents MCP server', async () => {
+  it('registers featherkit MCP server', async () => {
     const config = defaultConfig('test');
     await generateOpenCodeConfig(tmpDir, config);
     const raw = await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.mcp?.featheragents?.command).toBe('node');
-    expect(parsed.mcp?.featheragents?.type).toBe('local');
-    expect(parsed.mcp?.featheragents?.args).toContain(
-      './node_modules/featheragents/dist/server.js'
+    expect(parsed.mcp?.featherkit?.command).toBe('node');
+    expect(parsed.mcp?.featherkit?.type).toBe('local');
+    expect(parsed.mcp?.featherkit?.args).toContain(
+      './node_modules/featherkit/dist/server.js'
     );
   });
 
@@ -220,7 +220,7 @@ describe('generateOpenCodeConfig', () => {
     const parsed = JSON.parse(raw);
     expect(parsed.theme).toBe('dark');
     expect(parsed.mcp?.other).toBeDefined();
-    expect(parsed.mcp?.featheragents).toBeDefined();
+    expect(parsed.mcp?.featherkit).toBeDefined();
   });
 
   it('is idempotent', async () => {
@@ -242,8 +242,8 @@ describe('runMcpInstall', () => {
 
   async function writeConfig(dir: string, clients: 'both' | 'claude-code' | 'opencode') {
     const config = { ...defaultConfig('mcp-install-test'), clients };
-    await mkdir(join(dir, 'featheragents'), { recursive: true });
-    await writeFile(join(dir, 'featheragents', 'config.json'), JSON.stringify(config), 'utf8');
+    await mkdir(join(dir, 'featherkit'), { recursive: true });
+    await writeFile(join(dir, 'featherkit', 'config.json'), JSON.stringify(config), 'utf8');
   }
 
   beforeEach(async () => {
@@ -261,7 +261,7 @@ describe('runMcpInstall', () => {
     const settings = join(tmpDir, '.claude', 'settings.local.json');
     expect(existsSync(settings)).toBe(true);
     const parsed = JSON.parse(await readFile(settings, 'utf8'));
-    expect(parsed.mcpServers?.featheragents).toBeDefined();
+    expect(parsed.mcpServers?.featherkit).toBeDefined();
     expect(existsSync(join(tmpDir, '.opencode', 'opencode.json'))).toBe(false);
   });
 
@@ -271,7 +271,7 @@ describe('runMcpInstall', () => {
     const ocPath = join(tmpDir, '.opencode', 'opencode.json');
     expect(existsSync(ocPath)).toBe(true);
     const parsed = JSON.parse(await readFile(ocPath, 'utf8'));
-    expect(parsed.mcp?.featheragents).toBeDefined();
+    expect(parsed.mcp?.featherkit).toBeDefined();
     expect(existsSync(join(tmpDir, '.claude', 'settings.local.json'))).toBe(false);
   });
 

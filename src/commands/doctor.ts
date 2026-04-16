@@ -32,22 +32,22 @@ async function tryReadJson(filePath: string): Promise<unknown | null> {
 export async function runDoctor(cwd: string): Promise<boolean> {
   const results: CheckResult[] = [];
 
-  // 1. featheragents/config.json exists and validates
-  const configPath = join(cwd, 'featheragents', 'config.json');
+  // 1. featherkit/config.json exists and validates
+  const configPath = join(cwd, 'featherkit', 'config.json');
   if (!existsSync(configPath)) {
-    results.push(fail('featheragents/config.json', 'File not found. Run `featheragents init`.'));
+    results.push(fail('featherkit/config.json', 'File not found. Run `featherkit init`.'));
   } else {
     const parsed = await tryReadJson(configPath);
     const result = FeatherConfigSchema.safeParse(parsed);
     if (result.success) {
-      results.push(pass('featheragents/config.json', `project: ${result.data.projectName}`));
+      results.push(pass('featherkit/config.json', `project: ${result.data.projectName}`));
 
       const config = result.data;
 
       // 2. .project-state/state.json exists and validates
       const statePath = join(cwd, config.stateDir, 'state.json');
       if (!existsSync(statePath)) {
-        results.push(fail(`${config.stateDir}/state.json`, 'File not found. Run `featheragents init`.'));
+        results.push(fail(`${config.stateDir}/state.json`, 'File not found. Run `featherkit init`.'));
       } else {
         const stateParsed = await tryReadJson(statePath);
         const stateResult = ProjectStateSchema.safeParse(stateParsed);
@@ -80,18 +80,18 @@ export async function runDoctor(cwd: string): Promise<boolean> {
         // 5a. Claude Code client config references MCP server
         const claudeSettings = join(cwd, '.claude', 'settings.local.json');
         if (!existsSync(claudeSettings)) {
-          results.push(fail('.claude/settings.local.json', 'Not found. Run `featheragents mcp install`.'));
+          results.push(fail('.claude/settings.local.json', 'Not found. Run `featherkit mcp install`.'));
         } else {
           const settings = await tryReadJson(claudeSettings) as Record<string, unknown> | null;
           const hasMcp =
             settings &&
             typeof settings['mcpServers'] === 'object' &&
             settings['mcpServers'] !== null &&
-            'featheragents' in (settings['mcpServers'] as object);
+            'featherkit' in (settings['mcpServers'] as object);
           if (hasMcp) {
             results.push(pass('.claude/settings.local.json — MCP registered'));
           } else {
-            results.push(fail('.claude/settings.local.json', 'featheragents MCP entry missing. Run `featheragents mcp install`.'));
+            results.push(fail('.claude/settings.local.json', 'featherkit MCP entry missing. Run `featherkit mcp install`.'));
           }
         }
       }
@@ -99,28 +99,28 @@ export async function runDoctor(cwd: string): Promise<boolean> {
       if (includeOpenCode) {
         const openCodeConfig = join(cwd, '.opencode', 'opencode.json');
         if (!existsSync(openCodeConfig)) {
-          results.push(fail('.opencode/opencode.json', 'Not found. Run `featheragents init`.'));
+          results.push(fail('.opencode/opencode.json', 'Not found. Run `featherkit init`.'));
         } else {
           const cfg = await tryReadJson(openCodeConfig) as Record<string, unknown> | null;
           const hasMcp =
             cfg &&
             typeof cfg['mcp'] === 'object' &&
             cfg['mcp'] !== null &&
-            'featheragents' in (cfg['mcp'] as object);
+            'featherkit' in (cfg['mcp'] as object);
           if (hasMcp) {
             results.push(pass('.opencode/opencode.json — MCP registered'));
           } else {
-            results.push(fail('.opencode/opencode.json', 'featheragents MCP entry missing'));
+            results.push(fail('.opencode/opencode.json', 'featherkit MCP entry missing'));
           }
         }
       }
 
       // 4. MCP server entry point exists
-      const serverPath = join(cwd, 'node_modules', 'featheragents', 'dist', 'server.js');
+      const serverPath = join(cwd, 'node_modules', 'featherkit', 'dist', 'server.js');
       if (existsSync(serverPath)) {
-        results.push(pass('MCP server (node_modules/featheragents/dist/server.js)'));
+        results.push(pass('MCP server (node_modules/featherkit/dist/server.js)'));
       } else {
-        results.push(fail('MCP server', 'node_modules/featheragents/dist/server.js not found. Run `npm install featheragents`.'));
+        results.push(fail('MCP server', 'node_modules/featherkit/dist/server.js not found. Run `npm install featherkit`.'));
       }
 
       // 6. Required project-docs files exist
@@ -139,13 +139,13 @@ export async function runDoctor(cwd: string): Promise<boolean> {
       const issues = result.error.issues
         .map((i) => `${i.path.join('.')}: ${i.message}`)
         .join('; ');
-      results.push(fail('featheragents/config.json', `Invalid schema: ${issues}`));
+      results.push(fail('featherkit/config.json', `Invalid schema: ${issues}`));
     }
   }
 
   // Print results
   log.blank();
-  log.bold('FeatherAgents doctor\n');
+  log.bold('FeatherKit doctor\n');
 
   let anyFail = false;
   for (const r of results) {
@@ -168,7 +168,7 @@ export async function runDoctor(cwd: string): Promise<boolean> {
 }
 
 export const doctorCommand = new Command('doctor')
-  .description('Verify FeatherAgents setup and dependencies')
+  .description('Verify FeatherKit setup and dependencies')
   .action(async () => {
     const ok = await runDoctor(process.cwd());
     if (!ok) process.exit(1);

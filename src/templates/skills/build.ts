@@ -19,7 +19,7 @@ Use \`/build\` when a task has been framed and is ready for implementation. The 
 ### 1. Load the task
 
 \`\`\`
-mcp__featheragents__get_task  { taskId: "<id>" }
+mcp__featherkit__get_task  { taskId: "<id>" }
 \`\`\`
 
 Read the goal, files list, done criteria, and risks. If there are open questions, resolve them before writing code — don't guess.
@@ -40,7 +40,7 @@ Read the specific files listed in the task. If you need conventions, check \`pro
 After completing a meaningful chunk (a module, a test suite, a tricky function):
 
 \`\`\`
-mcp__featheragents__append_progress  {
+mcp__featherkit__append_progress  {
   taskId: "<id>",
   role: "build",
   message: "<one sentence: what was done>"
@@ -54,7 +54,7 @@ Keep messages factual and brief: "Implemented state-io atomicWrite", not "Made g
 Before writing the handoff, run the mechanical phase gate:
 
 \`\`\`
-mcp__featheragents__verify_phase  { phase: "build", taskId: "<id>" }
+mcp__featherkit__verify_phase  { phase: "build", taskId: "<id>" }
 \`\`\`
 
 - **FAIL** → fix the issues before calling \`write_handoff\`. TypeScript errors and test failures must be resolved — don't send broken code to a critic session.

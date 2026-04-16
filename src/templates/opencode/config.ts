@@ -13,10 +13,10 @@ interface OpenCodeConfig {
 export function renderOpenCodeConfig(config: FeatherConfig): string {
   const cfg: OpenCodeConfig = {
     mcp: {
-      featheragents: {
+      featherkit: {
         type: 'local',
         command: 'node',
-        args: ['./node_modules/featheragents/dist/server.js'],
+        args: ['./node_modules/featherkit/dist/server.js'],
       },
     },
   };

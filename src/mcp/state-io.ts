@@ -11,7 +11,7 @@ import type { ProjectState, FeatherConfig } from '../config/schema.js';
 
 const DEFAULT_STATE_DIR = '.project-state';
 const STATE_FILE = 'state.json';
-const CONFIG_PATH = 'featheragents/config.json';
+const CONFIG_PATH = 'featherkit/config.json';
 
 export function getStatePath(stateDir?: string, cwd = process.cwd()): string {
   return join(cwd, stateDir ?? DEFAULT_STATE_DIR, STATE_FILE);

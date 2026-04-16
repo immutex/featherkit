@@ -10,6 +10,9 @@ import {
   checkTypeScript,
   checkTestSuite,
   checkGitScope,
+  checkFilesExist,
+  checkTodosInDiff,
+  checkLinters,
   formatVerificationResult,
   runVerifyFrame,
   runVerifyCritic,
@@ -255,16 +258,22 @@ describe('checkTestSuite', () => {
 describe('checkGitScope', () => {
   it('warns when no changes and no task files', async () => {
     // Non-git directory — runGitDiff returns empty/error, parseDiffFilePaths returns []
-    const checks = await checkGitScope([], 'HEAD', tmpDir);
+    const { checks } = await checkGitScope([], 'HEAD', tmpDir);
     expect(checks).toHaveLength(1);
     expect(checks[0]!.status).toBe('warn');
   });
 
   it('warns for each expected file not found in diff', async () => {
     // Non-git dir → empty diff → task files not found
-    const checks = await checkGitScope(['src/a.ts', 'src/b.ts'], 'HEAD', tmpDir);
+    const { checks } = await checkGitScope(['src/a.ts', 'src/b.ts'], 'HEAD', tmpDir);
     const notFoundChecks = checks.filter((c) => c.message.includes('expected change not found'));
     expect(notFoundChecks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('returns the diff string alongside checks', async () => {
+    const result = await checkGitScope([], 'HEAD', tmpDir);
+    expect(result).toHaveProperty('diff');
+    expect(typeof result.diff).toBe('string');
   });
 });
 
@@ -410,5 +419,127 @@ describe('runVerifyCritic', () => {
     const result = await runVerifyCritic(opts, notes);
     expect(() => new Date(result.timestamp)).not.toThrow();
     expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+// ── checkFilesExist ───────────────────────────────────────────────────────────
+
+describe('checkFilesExist', () => {
+  it('returns empty array for empty task files list', () => {
+    const checks = checkFilesExist([], tmpDir);
+    expect(checks).toHaveLength(0);
+  });
+
+  it('returns pass for a file that exists', async () => {
+    await writeFile(join(tmpDir, 'myfile.ts'), '// content', 'utf8');
+    const checks = checkFilesExist(['myfile.ts'], tmpDir);
+    expect(checks[0]!.status).toBe('pass');
+    expect(checks[0]!.message).toContain('exists');
+  });
+
+  it('returns warn (not fail) for a file that does not exist', () => {
+    const checks = checkFilesExist(['src/missing.ts'], tmpDir);
+    expect(checks[0]!.status).toBe('warn');
+    expect(checks[0]!.message).toContain('not found');
+  });
+
+  it('checks each file independently', async () => {
+    await writeFile(join(tmpDir, 'exists.ts'), '', 'utf8');
+    const checks = checkFilesExist(['exists.ts', 'missing.ts'], tmpDir);
+    expect(checks[0]!.status).toBe('pass');
+    expect(checks[1]!.status).toBe('warn');
+  });
+});
+
+// ── checkTodosInDiff ──────────────────────────────────────────────────────────
+
+describe('checkTodosInDiff', () => {
+  it('passes with no TODOs in diff', () => {
+    const diff = '+const x = 1;\n+function foo() {}\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.status).toBe('pass');
+    expect(check.message).toBe('none found');
+  });
+
+  it('warns when a TODO is added', () => {
+    const diff = '+// TODO: fix this later\n+const x = 1;\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.status).toBe('warn');
+    expect(check.message).toContain('TODO');
+    expect(check.message).toContain('1 TODO');
+  });
+
+  it('catches FIXME, HACK, and XXX markers', () => {
+    const diff = '+// FIXME: broken\n+// HACK: workaround\n+// XXX: investigate\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.status).toBe('warn');
+    expect(check.message).toContain('3 TODO');
+  });
+
+  it('does not count removed lines (starting with -)', () => {
+    const diff = '-// TODO: old todo being removed\n+// clean code\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.status).toBe('pass');
+  });
+
+  it('does not count diff header lines (starting with ++)', () => {
+    const diff = '+++ b/src/file.ts\n+// actual added line\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.status).toBe('pass');
+  });
+
+  it('is case-insensitive for markers', () => {
+    const diff = '+// todo: lowercase todo\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.status).toBe('warn');
+  });
+
+  it('includes a sample of the TODO lines in the message', () => {
+    const diff = '+// TODO: fix foo\n+const x = 1;\n';
+    const check = checkTodosInDiff(diff);
+    expect(check.message).toContain('fix foo');
+  });
+});
+
+// ── checkLinters ──────────────────────────────────────────────────────────────
+
+describe('checkLinters', () => {
+  it('returns empty array when no linter config files are present', async () => {
+    const checks = await checkLinters(tmpDir);
+    expect(checks).toHaveLength(0);
+  });
+
+  it('returns ESLint check when .eslintrc.json is present', async () => {
+    await writeFile(join(tmpDir, '.eslintrc.json'), '{"rules":{}}', 'utf8');
+    const checks = await checkLinters(tmpDir);
+    const eslint = checks.find((c) => c.name === 'ESLint');
+    expect(eslint).toBeDefined();
+    // Either pass (eslint not installed) or warn (not installed) or fail (errors)
+    expect(['pass', 'warn', 'fail']).toContain(eslint!.status);
+  });
+
+  it('returns go vet check when go.mod is present', async () => {
+    await writeFile(join(tmpDir, 'go.mod'), 'module example.com/foo\n\ngo 1.21\n', 'utf8');
+    const checks = await checkLinters(tmpDir);
+    const govet = checks.find((c) => c.name === 'go vet');
+    expect(govet).toBeDefined();
+  });
+
+  it('returns cargo check when Cargo.toml is present', async () => {
+    await writeFile(
+      join(tmpDir, 'Cargo.toml'),
+      '[package]\nname = "test"\nversion = "0.1.0"\n',
+      'utf8'
+    );
+    const checks = await checkLinters(tmpDir);
+    const cargo = checks.find((c) => c.name === 'cargo check');
+    expect(cargo).toBeDefined();
+  });
+
+  it('returns RuboCop check when .rubocop.yml is present', async () => {
+    await writeFile(join(tmpDir, '.rubocop.yml'), 'AllCops:\n  NewCops: enable\n', 'utf8');
+    const checks = await checkLinters(tmpDir);
+    const rubocop = checks.find((c) => c.name === 'RuboCop');
+    expect(rubocop).toBeDefined();
   });
 });
