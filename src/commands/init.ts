@@ -199,7 +199,7 @@ export async function scaffoldFiles(
   }
 
   log.blank();
-  log.success('Done. Run `featherkit doctor` to verify the setup.');
+  log.success('Done. Run `npx featherkit doctor` to verify the setup.');
 }
 
 // ── Commander command ─────────────────────────────────────────────────────────
