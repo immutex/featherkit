@@ -10,7 +10,7 @@ import {
   confirm,
 } from '@inquirer/prompts';
 
-import { defaultConfig, MODEL_PRESETS } from '../config/defaults.js';
+import { defaultConfig, MODEL_CATALOG, MODEL_PRESETS, type ModelOption } from '../config/defaults.js';
 import { getAllTemplates } from '../templates/index.js';
 import { writeIfNotExists } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
@@ -69,11 +69,11 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
     const presetChoice = await select<string>({
       message: 'Model preset:',
       choices: [
-        { name: 'Balanced  (Sonnet 4.6 frame/build, GPT-5.4 critic, Haiku 4.5 sync)', value: 'balanced' },
-        { name: 'Low-cost  (Haiku 4.5 frame/critic/sync, Sonnet 4.6 build)', value: 'low-cost' },
-        { name: 'High-quality  (Opus 4.6 frame, Sonnet 4.6 build, GPT-5.4 critic)', value: 'high-quality' },
-        { name: 'Local-first  (Qwen3 via Ollama, no API costs)', value: 'local-first' },
-        { name: 'Manual — configure each role', value: 'manual' },
+        { name: 'Balanced     (Sonnet 4.6 frame/build · GPT-5.4 critic · Haiku 4.5 sync)', value: 'balanced' },
+        { name: 'Low-cost     (Haiku 4.5 frame/critic/sync · Sonnet 4.6 build)', value: 'low-cost' },
+        { name: 'High-quality (Opus 4.7 frame · Sonnet 4.6 build · GPT-5.4 critic)', value: 'high-quality' },
+        { name: 'Open-source  (Qwen3.6 Plus frame/build/sync · GLM-5.1 critic, via OpenRouter)', value: 'open-source' },
+        { name: 'Custom       — pick a model for each role', value: 'manual' },
       ],
     });
 
@@ -136,18 +136,15 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
 async function promptManualModels(): Promise<ModelConfig[]> {
   const roles = ['frame', 'build', 'critic', 'sync'] as const;
   const models: ModelConfig[] = [];
+  const defaultModel = MODEL_CATALOG.find((m) => m.model === 'claude-sonnet-4-6') ?? MODEL_CATALOG[0]!;
 
   for (const role of roles) {
-    const modelStr = await input({
-      message: `Model for ${role} (provider/model, e.g. anthropic/claude-sonnet-4-6):`,
-      default: 'anthropic/claude-sonnet-4-6',
+    const chosen = await select<ModelOption>({
+      message: `Model for ${role} role:`,
+      choices: MODEL_CATALOG.map((m) => ({ name: m.label, value: m })),
+      default: defaultModel,
     });
-    const [provider, ...rest] = modelStr.split('/');
-    models.push({
-      provider: provider ?? 'anthropic',
-      model: rest.join('/') || 'claude-sonnet-4-20250514',
-      role,
-    });
+    models.push({ provider: chosen.provider, model: chosen.model, role });
   }
 
   return models;
@@ -210,7 +207,7 @@ export async function scaffoldFiles(
 export const initCommand = new Command('init')
   .description('Scaffold project structure, skills, and MCP config')
   .option('--force', 'Overwrite existing files')
-  .option('--preset <name>', 'Skip model selection and use a preset (balanced, low-cost, high-quality, local-first)')
+  .option('--preset <name>', 'Skip model selection and use a preset (balanced, low-cost, high-quality, open-source)')
   .option('--local-only', 'Skip all integration prompts')
   .action(async (options: InitOptions) => {
     try {
