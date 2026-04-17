@@ -11,7 +11,7 @@
 [![Node.js](https://img.shields.io/node/v/%401mmutex%2Ffeatherkit?color=brightgreen)](https://nodejs.org)
 [![GitHub stars](https://img.shields.io/github/stars/immutex/featherkit?style=social)](https://github.com/immutex/featherkit)
 
-[Quick Start](#quick-start) · [How It Works](#how-it-works) · [Phase Gates](#deterministic-phase-gates) · [CLI Reference](#cli-reference) · [MCP Tools](#mcp-tools) · [Architecture](#architecture) · [Philosophy](#philosophy)
+[Quick Start](#quick-start) · [How It Works](#how-it-works) · [Real-world Usage](#real-world-usage) · [Phase Gates](#deterministic-phase-gates) · [CLI Reference](#cli-reference) · [MCP Tools](#mcp-tools) · [Architecture](#architecture) · [Philosophy](#philosophy)
 
 </div>
 
@@ -60,6 +60,76 @@ FeatherKit installs a lightweight 4-stage loop into your project. Models follow 
 **Skip stages freely.** A one-line bugfix doesn't need a frame phase. A high-stakes migration might add a second critic pass. The loop is a guideline, not a gate.
 
 **Mix models.** Run Claude Code for planning and critique, GPT-4o or Codex for implementation. Each model gets only the context relevant to its role.
+
+---
+
+## Real-world Usage
+
+### Do you need two terminal windows open at once?
+
+No. Claude Code and OpenCode don't need to run simultaneously. The MCP server is not a shared background daemon — each client spawns its own process on demand. Shared state lives in `state.json` on disk, so switching between tools is as simple as closing one and opening the other. The next model picks up exactly where the last one left off.
+
+### Single-model setup (Claude Code only)
+
+The simplest setup: one tool, all four phases, one model (or different models per phase if you configure it).
+
+```
+Claude Code terminal
+│
+├── /frame    → plan the task, write done criteria
+├── /build    → implement
+├── /critic   → review the diff
+└── /sync     → close the task, update state
+```
+
+Every slash command uses the MCP server to read and write shared state. You just work through the phases in sequence in a single Claude Code session.
+
+### Multi-model setup (Claude Code + OpenCode)
+
+The typical pattern: use Claude Code for planning and critique, OpenCode for implementation. You switch between them phase by phase — no overlap required.
+
+```
+Step 1 — Claude Code
+  /frame
+  → reads task goal, writes plan + done criteria to state.json
+
+Step 2 — OpenCode  (open a new terminal, or switch your IDE agent)
+  builder agent auto-activates
+  → reads the task + handoff from state.json via MCP
+  → implements, calls verify_phase, writes handoff back to state.json
+
+Step 3 — Claude Code  (back to your original terminal)
+  /critic
+  → reads the diff + handoff from state.json via MCP
+  → writes review notes
+
+Step 4 — either tool
+  /sync  (Claude Code)  or  syncer agent  (OpenCode)
+  → closes the task
+```
+
+The two tools never talk to each other directly. `state.json` is the handoff mechanism. When OpenCode's builder agent finishes and calls `write_handoff`, that file is sitting on disk ready for the Claude Code critic to pick up — no copy-paste, no context re-feeding.
+
+### What "switching tools" actually looks like
+
+```bash
+# Terminal 1 (Claude Code) — frame the task
+claude  # open Claude Code in your project
+# run /frame inside the session
+
+# Terminal 2 (OpenCode) — build
+opencode  # open OpenCode in the same project directory
+# the builder agent picks up from state.json automatically
+
+# Back to Terminal 1 (Claude Code) — critique
+# run /critic inside the session
+```
+
+Or if you prefer a single terminal: finish your Claude Code session, close it, open OpenCode, finish, re-open Claude Code. The state persists between invocations.
+
+### Mixing models within a single tool
+
+If you're only using Claude Code but configured different models per role (e.g. Sonnet 4.6 for build, Opus 4.7 for frame), the skills remain the same — you just run each slash command with the model you want active in your Claude Code session. The MCP state bridges the gap between sessions.
 
 ---
 
@@ -124,10 +194,10 @@ Then it scaffolds everything and registers the MCP server automatically.
 
 ```bash
 # Verify the setup:
-featherkit doctor
+npx featherkit doctor
 
 # Start your first task:
-featherkit task start FEAT-001
+npx featherkit task start FEAT-001
 
 # Work in Claude Code or OpenCode — /frame, /build, /critic, /sync are ready
 ```
@@ -145,9 +215,11 @@ featherkit init
 |--------|-------|-------|--------|------|
 | `balanced` | Sonnet 4.6 | Sonnet 4.6 | GPT-5.4 | Haiku 4.5 |
 | `low-cost` | Haiku 4.5 | Sonnet 4.6 | Haiku 4.5 | Haiku 4.5 |
-| `high-quality` | Opus 4.6 | Sonnet 4.6 | GPT-5.4 | Sonnet 4.6 |
-| `local-first` | Qwen3 (Ollama) | Qwen3 | Qwen3 | Qwen3 |
-| `manual` | you choose | you choose | you choose | you choose |
+| `high-quality` | Opus 4.7 | Sonnet 4.6 | GPT-5.4 | Sonnet 4.6 |
+| `open-source` | Qwen3.6 Plus | Qwen3.6 Plus | GLM-5.1 | Qwen3.6 Plus |
+| `custom` | you choose | you choose | you choose | you choose |
+
+Open-source models are routed via OpenRouter. Custom selection presents a menu of all supported models — no manual ID entry required.
 
 Use `--preset <name>` with `featherkit init` to skip the interactive selector.
 
