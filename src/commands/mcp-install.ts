@@ -12,7 +12,7 @@ export async function runMcpInstall(cwd: string): Promise<void> {
 
   if (includeClaudeCode) {
     await generateClaudeCodeConfig(cwd, config);
-    log.success('.claude/settings.local.json — featherkit MCP registered');
+    log.success('.mcp.json + .claude/settings.local.json — featherkit MCP registered');
   }
 
   if (includeOpenCode) {

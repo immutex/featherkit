@@ -2,11 +2,14 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import type { FeatherConfig } from '../config/schema.js';
 
+// Project-level MCP server config (read by `claude mcp list` and active sessions)
+const MCP_JSON_PATH = '.mcp.json';
+// Claude Code settings (permissions, etc.)
 const SETTINGS_PATH = '.claude/settings.local.json';
 
 const FEATHERKIT_MCP_ENTRY = {
-  command: 'npx',
-  args: ['-y', '--package', '@1mmutex/featherkit', 'featherkit-mcp'],
+  command: 'node',
+  args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
 };
 
 const CONTEXT7_MCP_ENTRY = {
@@ -46,16 +49,6 @@ export function deepMerge(
 }
 
 export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConfig): Promise<void> {
-  const settingsPath = join(cwd, SETTINGS_PATH);
-
-  let existing: Record<string, unknown> = {};
-  try {
-    const raw = await readFile(settingsPath, 'utf8');
-    existing = JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    existing = {};
-  }
-
   const mcpServers: Record<string, unknown> = { featherkit: FEATHERKIT_MCP_ENTRY };
   const allow = ['mcp__featherkit__*'];
 
@@ -64,13 +57,28 @@ export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConf
     allow.push('mcp__context7__*');
   }
 
-  const incoming: Record<string, unknown> = {
-    mcpServers,
-    permissions: { allow },
-  };
+  // Write MCP servers to .mcp.json (project root — picked up by claude mcp list and sessions)
+  const mcpJsonPath = join(cwd, MCP_JSON_PATH);
+  let existingMcp: Record<string, unknown> = {};
+  try {
+    const raw = await readFile(mcpJsonPath, 'utf8');
+    existingMcp = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    existingMcp = {};
+  }
+  const mergedMcp = deepMerge(existingMcp, { mcpServers });
+  await writeFile(mcpJsonPath, JSON.stringify(mergedMcp, null, 2) + '\n', 'utf8');
 
-  const merged = deepMerge(existing, incoming);
-
+  // Write permissions to .claude/settings.local.json
+  const settingsPath = join(cwd, SETTINGS_PATH);
+  let existingSettings: Record<string, unknown> = {};
+  try {
+    const raw = await readFile(settingsPath, 'utf8');
+    existingSettings = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    existingSettings = {};
+  }
+  const mergedSettings = deepMerge(existingSettings, { permissions: { allow } });
   await mkdir(dirname(settingsPath), { recursive: true });
-  await writeFile(settingsPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');
+  await writeFile(settingsPath, JSON.stringify(mergedSettings, null, 2) + '\n', 'utf8');
 }

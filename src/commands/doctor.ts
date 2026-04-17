@@ -2,7 +2,6 @@ import { Command } from 'commander';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
-import { execa } from 'execa';
 
 import { FeatherConfigSchema, ProjectStateSchema } from '../config/schema.js';
 import { log } from '../utils/logger.js';
@@ -78,21 +77,21 @@ export async function runDoctor(cwd: string): Promise<boolean> {
           results.push(fail('Claude Code skill files', `Missing: ${missing.join(', ')}`));
         }
 
-        // 5a. Claude Code client config references MCP server
-        const claudeSettings = join(cwd, '.claude', 'settings.local.json');
-        if (!existsSync(claudeSettings)) {
-          results.push(fail('.claude/settings.local.json', 'Not found. Run `featherkit mcp install`.'));
+        // 5a. .mcp.json at project root references featherkit MCP server
+        const mcpJson = join(cwd, '.mcp.json');
+        if (!existsSync(mcpJson)) {
+          results.push(fail('.mcp.json', 'Not found. Run `featherkit mcp install`.'));
         } else {
-          const settings = await tryReadJson(claudeSettings) as Record<string, unknown> | null;
+          const mcpCfg = await tryReadJson(mcpJson) as Record<string, unknown> | null;
           const hasMcp =
-            settings &&
-            typeof settings['mcpServers'] === 'object' &&
-            settings['mcpServers'] !== null &&
-            'featherkit' in (settings['mcpServers'] as object);
+            mcpCfg &&
+            typeof mcpCfg['mcpServers'] === 'object' &&
+            mcpCfg['mcpServers'] !== null &&
+            'featherkit' in (mcpCfg['mcpServers'] as object);
           if (hasMcp) {
-            results.push(pass('.claude/settings.local.json — MCP registered'));
+            results.push(pass('.mcp.json — featherkit MCP registered'));
           } else {
-            results.push(fail('.claude/settings.local.json', 'featherkit MCP entry missing. Run `featherkit mcp install`.'));
+            results.push(fail('.mcp.json', 'featherkit MCP entry missing. Run `featherkit mcp install`.'));
           }
         }
       }
@@ -116,16 +115,12 @@ export async function runDoctor(cwd: string): Promise<boolean> {
         }
       }
 
-      // 4. npx is available (MCP server is invoked via npx, no local install needed)
-      let npxOk = false;
-      try {
-        await execa('npx', ['--version']);
-        npxOk = true;
-      } catch { /* stays false */ }
-      if (npxOk) {
-        results.push(pass('MCP server — runs via npx (no local install required)'));
+      // 4. MCP server file exists (installed via npm install)
+      const mcpServerPath = join(cwd, 'node_modules/@1mmutex/featherkit/dist/server.js');
+      if (existsSync(mcpServerPath)) {
+        results.push(pass('MCP server', 'node_modules/@1mmutex/featherkit/dist/server.js found'));
       } else {
-        results.push(fail('MCP server', '`npx` not found in PATH. Install Node.js 22+.'));
+        results.push(fail('MCP server', 'node_modules/@1mmutex/featherkit/dist/server.js not found. Run `npm install @1mmutex/featherkit`.'));
       }
 
       // 6. Required project-docs files exist
