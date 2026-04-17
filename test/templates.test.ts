@@ -179,8 +179,8 @@ describe('renderOpenCodeConfig', () => {
     expect(parsed.mcp?.featherkit).toBeDefined();
     expect(parsed.mcp.featherkit.type).toBe('local');
     expect(Array.isArray(parsed.mcp.featherkit.command)).toBe(true);
-    expect(parsed.mcp.featherkit.command).toContain('node');
-    expect(parsed.mcp.featherkit.command).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
+    expect(parsed.mcp.featherkit.command).toContain('npx');
+    expect(parsed.mcp.featherkit.command).toContain('featherkit-mcp');
   });
 
   it('does not include an agents block (agents live in .opencode/agents/*.md)', () => {

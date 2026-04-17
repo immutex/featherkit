@@ -16,5 +16,8 @@ export default defineConfig([
     format: ['esm'],
     target: 'node22',
     outDir: 'dist',
+    banner: {
+      js: '#!/usr/bin/env node',
+    },
   },
 ]);

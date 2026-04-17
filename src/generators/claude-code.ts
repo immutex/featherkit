@@ -1,19 +1,18 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join, dirname } from 'path';
+import type { FeatherConfig } from '../config/schema.js';
 
 const SETTINGS_PATH = '.claude/settings.local.json';
 
-const MCP_ENTRY = {
-  mcpServers: {
-    featherkit: {
-      command: 'node',
-      args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
-    },
-  },
-  permissions: {
-    allow: ['mcp__featherkit__*'],
-  },
+const FEATHERKIT_MCP_ENTRY = {
+  command: 'npx',
+  args: ['-y', '--package', '@1mmutex/featherkit', 'featherkit-mcp'],
+};
+
+const CONTEXT7_MCP_ENTRY = {
+  command: 'npx',
+  args: ['-y', '@upstash/context7-mcp@latest'],
 };
 
 /**
@@ -47,7 +46,7 @@ export function deepMerge(
   return result;
 }
 
-export async function generateClaudeCodeConfig(cwd: string): Promise<void> {
+export async function generateClaudeCodeConfig(cwd: string, config?: FeatherConfig): Promise<void> {
   const settingsPath = join(cwd, SETTINGS_PATH);
 
   let existing: Record<string, unknown> = {};
@@ -56,12 +55,33 @@ export async function generateClaudeCodeConfig(cwd: string): Promise<void> {
       const raw = await readFile(settingsPath, 'utf8');
       existing = JSON.parse(raw) as Record<string, unknown>;
     } catch {
-      // Unreadable/invalid JSON — start fresh but don't clobber the file
       existing = {};
     }
   }
 
-  const merged = deepMerge(existing, MCP_ENTRY);
+  const mcpServers: Record<string, unknown> = {
+    featherkit: FEATHERKIT_MCP_ENTRY,
+  };
+
+  if (config?.integrations.context7) {
+    mcpServers['context7'] = CONTEXT7_MCP_ENTRY;
+  }
+
+  const incoming: Record<string, unknown> = {
+    mcpServers,
+    permissions: {
+      allow: ['mcp__featherkit__*'],
+    },
+  };
+
+  if (config?.integrations.context7) {
+    (incoming.permissions as Record<string, unknown>)['allow'] = [
+      'mcp__featherkit__*',
+      'mcp__context7__*',
+    ];
+  }
+
+  const merged = deepMerge(existing, incoming);
 
   await mkdir(dirname(settingsPath), { recursive: true });
   await writeFile(settingsPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');

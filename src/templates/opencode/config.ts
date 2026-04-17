@@ -11,7 +11,7 @@ export function renderOpenCodeConfig(_config: FeatherConfig): string {
     mcp: {
       featherkit: {
         type: 'local',
-        command: ['node', './node_modules/@1mmutex/featherkit/dist/server.js'],
+        command: ['npx', '-y', '--package', '@1mmutex/featherkit', 'featherkit-mcp'],
       },
     },
   };

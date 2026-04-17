@@ -1,10 +1,11 @@
 {
   "name": "@1mmutex/featherkit",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Lean multi-model agentic coding workflow — bootstraps project structure, skills, and a local MCP server for coordinating Claude Code and OpenCode.",
   "type": "module",
   "bin": {
-    "featherkit": "./dist/cli.js"
+    "featherkit": "./dist/cli.js",
+    "featherkit-mcp": "./dist/server.js"
   },
   "files": [
     "dist",

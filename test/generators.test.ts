@@ -90,14 +90,13 @@ describe('generateClaudeCodeConfig', () => {
     expect(raw).toBeTruthy();
   });
 
-  it('registers featherkit MCP server', async () => {
+  it('registers featherkit MCP server via npx', async () => {
     await generateClaudeCodeConfig(tmpDir);
     const raw = await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.mcpServers?.featherkit?.command).toBe('node');
-    expect(parsed.mcpServers?.featherkit?.args).toContain(
-      './node_modules/@1mmutex/featherkit/dist/server.js'
-    );
+    expect(parsed.mcpServers?.featherkit?.command).toBe('npx');
+    expect(parsed.mcpServers?.featherkit?.args).toContain('featherkit-mcp');
+    expect(parsed.mcpServers?.featherkit?.args).toContain('@1mmutex/featherkit');
   });
 
   it('adds mcp__featherkit__* to permissions.allow', async () => {
@@ -105,6 +104,24 @@ describe('generateClaudeCodeConfig', () => {
     const raw = await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8');
     const parsed = JSON.parse(raw);
     expect(parsed.permissions?.allow).toContain('mcp__featherkit__*');
+  });
+
+  it('registers context7 MCP server when integration is enabled', async () => {
+    const config = defaultConfig('test');
+    config.integrations.context7 = true;
+    await generateClaudeCodeConfig(tmpDir, config);
+    const parsed = JSON.parse(await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8'));
+    expect(parsed.mcpServers?.context7).toBeDefined();
+    expect(parsed.mcpServers?.context7?.args).toContain('@upstash/context7-mcp@latest');
+    expect(parsed.permissions?.allow).toContain('mcp__context7__*');
+  });
+
+  it('does not register context7 when integration is disabled', async () => {
+    const config = defaultConfig('test');
+    config.integrations.context7 = false;
+    await generateClaudeCodeConfig(tmpDir, config);
+    const parsed = JSON.parse(await readFile(join(tmpDir, '.claude', 'settings.local.json'), 'utf8'));
+    expect(parsed.mcpServers?.context7).toBeUndefined();
   });
 
   it('preserves existing MCP servers', async () => {
@@ -182,17 +199,24 @@ describe('generateOpenCodeConfig', () => {
     expect(raw).toBeTruthy();
   });
 
-  it('registers featherkit MCP server', async () => {
+  it('registers featherkit MCP server via npx', async () => {
     const config = defaultConfig('test');
     await generateOpenCodeConfig(tmpDir, config);
     const raw = await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8');
     const parsed = JSON.parse(raw);
     expect(parsed.mcp?.featherkit?.type).toBe('local');
     expect(Array.isArray(parsed.mcp?.featherkit?.command)).toBe(true);
-    expect(parsed.mcp?.featherkit?.command).toContain('node');
-    expect(parsed.mcp?.featherkit?.command).toContain(
-      './node_modules/@1mmutex/featherkit/dist/server.js'
-    );
+    expect(parsed.mcp?.featherkit?.command).toContain('npx');
+    expect(parsed.mcp?.featherkit?.command).toContain('featherkit-mcp');
+  });
+
+  it('registers context7 as remote MCP when integration is enabled', async () => {
+    const config = defaultConfig('test');
+    config.integrations.context7 = true;
+    await generateOpenCodeConfig(tmpDir, config);
+    const parsed = JSON.parse(await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8'));
+    expect(parsed.mcp?.context7?.type).toBe('remote');
+    expect(parsed.mcp?.context7?.url).toContain('context7.com');
   });
 
   it('does not include an agents block (agents live in .opencode/agents/*.md)', async () => {

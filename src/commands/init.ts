@@ -206,7 +206,7 @@ export async function scaffoldFiles(
   const includeClaudeCode = config.clients === 'claude-code' || config.clients === 'both';
   const includeOpenCode = config.clients === 'opencode' || config.clients === 'both';
   if (includeClaudeCode) {
-    await generateClaudeCodeConfig(cwd);
+    await generateClaudeCodeConfig(cwd, config);
     log.success('.claude/settings.local.json — MCP registered');
   }
   if (includeOpenCode) {

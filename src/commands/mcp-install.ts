@@ -11,7 +11,7 @@ export async function runMcpInstall(cwd: string): Promise<void> {
   const includeOpenCode = config.clients === 'opencode' || config.clients === 'both';
 
   if (includeClaudeCode) {
-    await generateClaudeCodeConfig(cwd);
+    await generateClaudeCodeConfig(cwd, config);
     log.success('.claude/settings.local.json — featherkit MCP registered');
   }
 
