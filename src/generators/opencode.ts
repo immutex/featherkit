@@ -8,10 +8,11 @@ const CONFIG_PATH = '.opencode/opencode.json';
 
 function buildMcpEntry(): Record<string, unknown> {
   return {
+    $schema: 'https://opencode.ai/config.json',
     mcp: {
       featherkit: {
-        command: 'node',
-        args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
+        type: 'local',
+        command: ['node', './node_modules/@1mmutex/featherkit/dist/server.js'],
       },
     },
   };

@@ -90,17 +90,32 @@ describe('scaffoldFiles — both clients', () => {
     expect(existsSync(join(tmpDir, 'project-docs', 'active', 'latest-handoff.md'))).toBe(true);
   });
 
-  it('does not overwrite existing files without --force', async () => {
+  it('always overwrites managed files (skills, agents) without --force', async () => {
     await mkdir(join(tmpDir, '.claude'), { recursive: true });
     await writeFile(join(tmpDir, '.claude', 'CLAUDE.md'), '# Custom', 'utf8');
 
     await scaffoldFiles(tmpDir, config, false);
 
+    // Managed file — must be regenerated even without --force
     const content = await readFile(join(tmpDir, '.claude', 'CLAUDE.md'), 'utf8');
-    expect(content).toBe('# Custom');
+    expect(content).not.toBe('# Custom');
+    expect(content).toContain('init-test-project');
   });
 
-  it('overwrites existing files with --force', async () => {
+  it('does not overwrite user-data files without --force', async () => {
+    // First scaffold to create state.json
+    await scaffoldFiles(tmpDir, config, false);
+    const statePath = join(tmpDir, '.project-state', 'state.json');
+    await writeFile(statePath, '{"custom":true}', 'utf8');
+
+    await scaffoldFiles(tmpDir, config, false);
+
+    // Non-managed file — preserved
+    const content = await readFile(statePath, 'utf8');
+    expect(content).toBe('{"custom":true}');
+  });
+
+  it('overwrites all files with --force', async () => {
     await mkdir(join(tmpDir, '.claude'), { recursive: true });
     await writeFile(join(tmpDir, '.claude', 'CLAUDE.md'), '# Custom', 'utf8');
 

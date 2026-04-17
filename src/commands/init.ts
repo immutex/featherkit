@@ -156,20 +156,28 @@ export async function scaffoldFiles(
   force: boolean
 ): Promise<void> {
   const templates = getAllTemplates(config);
-  const written: string[] = [];
+  const created: string[] = [];
+  const updated: string[] = [];
   const skipped: string[] = [];
 
-  for (const { relativePath, content } of templates) {
+  for (const { relativePath, content, managed } of templates) {
     const fullPath = join(cwd, relativePath);
+    const exists = existsSync(fullPath);
 
-    if (force) {
+    if (managed || force) {
+      // Managed files (skills, agents) are always kept current.
+      // --force overwrites everything else too.
       await mkdir(dirname(fullPath), { recursive: true });
       await writeFile(fullPath, content, 'utf8');
-      written.push(relativePath);
+      if (exists && !force) {
+        updated.push(relativePath);
+      } else {
+        created.push(relativePath);
+      }
     } else {
       const wasWritten = await writeIfNotExists(fullPath, content);
       if (wasWritten) {
-        written.push(relativePath);
+        created.push(relativePath);
       } else {
         skipped.push(relativePath);
       }
@@ -177,8 +185,16 @@ export async function scaffoldFiles(
   }
 
   log.blank();
-  log.bold('Files created:');
-  for (const f of written) log.success(f);
+  if (created.length > 0) {
+    log.bold('Files created:');
+    for (const f of created) log.success(f);
+  }
+
+  if (updated.length > 0) {
+    log.blank();
+    log.bold('Files updated:');
+    for (const f of updated) log.success(f);
+  }
 
   if (skipped.length > 0) {
     log.blank();

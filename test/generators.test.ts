@@ -187,9 +187,10 @@ describe('generateOpenCodeConfig', () => {
     await generateOpenCodeConfig(tmpDir, config);
     const raw = await readFile(join(tmpDir, '.opencode', 'opencode.json'), 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.mcp?.featherkit?.command).toBe('node');
-    expect(parsed.mcp?.featherkit?.type).toBeUndefined();
-    expect(parsed.mcp?.featherkit?.args).toContain(
+    expect(parsed.mcp?.featherkit?.type).toBe('local');
+    expect(Array.isArray(parsed.mcp?.featherkit?.command)).toBe(true);
+    expect(parsed.mcp?.featherkit?.command).toContain('node');
+    expect(parsed.mcp?.featherkit?.command).toContain(
       './node_modules/@1mmutex/featherkit/dist/server.js'
     );
   });

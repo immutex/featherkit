@@ -177,8 +177,10 @@ describe('renderOpenCodeConfig', () => {
   it('contains featherkit MCP server entry', () => {
     const parsed = JSON.parse(renderOpenCodeConfig(makeConfig()));
     expect(parsed.mcp?.featherkit).toBeDefined();
-    expect(parsed.mcp.featherkit.command).toBe('node');
-    expect(parsed.mcp.featherkit.args).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
+    expect(parsed.mcp.featherkit.type).toBe('local');
+    expect(Array.isArray(parsed.mcp.featherkit.command)).toBe(true);
+    expect(parsed.mcp.featherkit.command).toContain('node');
+    expect(parsed.mcp.featherkit.command).toContain('./node_modules/@1mmutex/featherkit/dist/server.js');
   });
 
   it('does not include an agents block (agents live in .opencode/agents/*.md)', () => {

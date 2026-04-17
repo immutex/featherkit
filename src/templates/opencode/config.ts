@@ -1,15 +1,17 @@
 import type { FeatherConfig } from '../../config/schema.js';
 
 interface OpenCodeConfig {
-  mcp: Record<string, { command: string; args: string[] }>;
+  $schema: string;
+  mcp: Record<string, { type: string; command: string[] }>;
 }
 
 export function renderOpenCodeConfig(_config: FeatherConfig): string {
   const cfg: OpenCodeConfig = {
+    $schema: 'https://opencode.ai/config.json',
     mcp: {
       featherkit: {
-        command: 'node',
-        args: ['./node_modules/@1mmutex/featherkit/dist/server.js'],
+        type: 'local',
+        command: ['node', './node_modules/@1mmutex/featherkit/dist/server.js'],
       },
     },
   };

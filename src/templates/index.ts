@@ -15,6 +15,8 @@ import { renderFeatherkitConfig } from './featherkit-config.js';
 export interface TemplateFile {
   relativePath: string;
   content: string;
+  /** If true, always overwrite on init — file is generated and should stay current. */
+  managed?: boolean;
 }
 
 export function getAllTemplates(config: FeatherConfig): TemplateFile[] {
@@ -22,30 +24,21 @@ export function getAllTemplates(config: FeatherConfig): TemplateFile[] {
   const includeClaudeCode = config.clients === 'claude-code' || config.clients === 'both';
   const includeOpenCode = config.clients === 'opencode' || config.clients === 'both';
 
-  // Claude Code files
+  // Claude Code files — skills are managed (always overwritten with latest generated content)
   if (includeClaudeCode) {
-    files.push({ relativePath: '.claude/CLAUDE.md', content: renderClaudeMd(config) });
-    files.push({ relativePath: '.claude/commands/frame.md', content: renderFrameSkill(config) });
-    files.push({ relativePath: '.claude/commands/build.md', content: renderBuildSkill(config) });
-    files.push({ relativePath: '.claude/commands/critic.md', content: renderCriticSkill(config) });
-    files.push({ relativePath: '.claude/commands/sync.md', content: renderSyncSkill(config) });
+    files.push({ relativePath: '.claude/CLAUDE.md', content: renderClaudeMd(config), managed: true });
+    files.push({ relativePath: '.claude/commands/frame.md', content: renderFrameSkill(config), managed: true });
+    files.push({ relativePath: '.claude/commands/build.md', content: renderBuildSkill(config), managed: true });
+    files.push({ relativePath: '.claude/commands/critic.md', content: renderCriticSkill(config), managed: true });
+    files.push({ relativePath: '.claude/commands/sync.md', content: renderSyncSkill(config), managed: true });
   }
 
-  // OpenCode files
+  // OpenCode files — agents are managed; opencode.json is handled by the generator (deep merge)
   if (includeOpenCode) {
     files.push({ relativePath: '.opencode/opencode.json', content: renderOpenCodeConfig(config) });
-    files.push({
-      relativePath: '.opencode/agents/builder.md',
-      content: renderBuilderAgent(config),
-    });
-    files.push({
-      relativePath: '.opencode/agents/critic.md',
-      content: renderCriticAgent(config),
-    });
-    files.push({
-      relativePath: '.opencode/agents/syncer.md',
-      content: renderSyncerAgent(config),
-    });
+    files.push({ relativePath: '.opencode/agents/builder.md', content: renderBuilderAgent(config), managed: true });
+    files.push({ relativePath: '.opencode/agents/critic.md', content: renderCriticAgent(config), managed: true });
+    files.push({ relativePath: '.opencode/agents/syncer.md', content: renderSyncerAgent(config), managed: true });
   }
 
   // Always included
