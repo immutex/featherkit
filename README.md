@@ -79,7 +79,8 @@ feather doctor
 feather auth status
 
 # Start the dashboard:
-feather serve
+feather serve   # prints: Dashboard: http://localhost:7721?token=<token>
+# Open that URL directly — no token setup required
 
 # Run a task (manual):
 feather task start FEAT-001
@@ -195,7 +196,14 @@ Your `featherkit/config.json` assigns models per role:
 
 ## Dashboard
 
-`feather serve` starts a local HTTP + WebSocket server (`127.0.0.1:7721` by default). Open `http://localhost:7721` to get the dashboard.
+`feather serve` starts a local HTTP + WebSocket server (`127.0.0.1:7721` by default) and prints the full URL with auth token:
+
+```bash
+$ feather serve
+Dashboard: http://localhost:7721?token=<32-byte-hex>
+```
+
+Open that URL — the token is injected automatically, no `.env` setup needed.
 
 ```bash
 feather serve           # start on default port
