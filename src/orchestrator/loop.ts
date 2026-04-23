@@ -15,8 +15,8 @@ import { GatePauseError } from './gates.js';
 import { routeCriticResult } from './router.js';
 import { runPhase } from './runner.js';
 
-function loadWorkflow(config: FeatherConfig): Workflow {
-  const workflowPath = resolve(process.cwd(), config.workflow);
+function loadWorkflow(config: FeatherConfig, cwd: string): Workflow {
+  const workflowPath = resolve(cwd, config.workflow);
 
   try {
     const raw = JSON.parse(readFileSync(workflowPath, 'utf-8'));
@@ -42,6 +42,7 @@ export interface OrchestratorRunOpts {
   taskId?: string;
   once?: boolean;
   dryRun?: boolean;
+  cwd?: string;
 }
 
 type MemoryTraceRecord = {
@@ -109,8 +110,8 @@ async function setTaskStatus(
   taskId: string,
   status: TaskEntry['status'],
   currentTask: string | null,
+  cwd: string,
 ): Promise<void> {
-  const cwd = process.cwd();
   const state = await loadState(config.stateDir, cwd);
   const task = state.tasks.find((entry) => entry.id === taskId);
   if (!task) return;
@@ -124,8 +125,8 @@ async function persistCriticRoute(
   config: FeatherConfig,
   taskId: string,
   route: 'advance' | 'loopback' | 'blocked',
+  cwd: string,
 ): Promise<void> {
-  const cwd = process.cwd();
   const state = await loadState(config.stateDir, cwd);
   const task = state.tasks.find((entry) => entry.id === taskId);
   if (!task?.phaseCompletions?.length) return;
@@ -154,8 +155,8 @@ async function awaitGate(
   hooks: OrchestratorHooks | undefined,
   taskId: string,
   phase: 'frame' | 'sync',
+  cwd: string,
 ): Promise<boolean> {
-  const cwd = process.cwd();
   const state = await loadState(config.stateDir, cwd);
   const task = state.tasks.find((entry) => entry.id === taskId);
   if (!task) return false;
@@ -179,8 +180,8 @@ async function awaitGate(
       phase,
       reason: error instanceof Error ? error.message : String(error),
     });
-    await setTaskStatus(config, taskId, 'blocked', null);
-    return false;
+      await setTaskStatus(config, taskId, 'blocked', null, cwd);
+      return false;
   }
 }
 
@@ -254,8 +255,8 @@ export async function runOrchestrator(
   hooks?: OrchestratorHooks,
   opts?: OrchestratorRunOpts,
 ): Promise<void> {
-  const cwd = process.cwd();
-  const workflow = loadWorkflow(config);
+  const cwd = opts?.cwd ?? process.cwd();
+  const workflow = loadWorkflow(config, cwd);
   const memoryDb = config.memory.enabled ? openMemoryDb(resolveMemoryDbPath(config, cwd)) : null;
   const eventLogger = createEventLogger(config.stateDir, cwd);
   const runtimeHooks: OrchestratorHooks = {
@@ -303,7 +304,7 @@ export async function runOrchestrator(
         }
 
         if (phase === 'sync') {
-           const approved = await awaitGate(config, runtimeHooks, latestTask.id, 'sync');
+            const approved = await awaitGate(config, runtimeHooks, latestTask.id, 'sync', cwd);
           if (!approved) {
             taskFinished = true;
             continue;
@@ -355,7 +356,7 @@ export async function runOrchestrator(
             phase,
             reason: failureReason(result.status, result.stderr),
           });
-          await setTaskStatus(config, latestTask.id, 'blocked', null);
+           await setTaskStatus(config, latestTask.id, 'blocked', null, cwd);
           taskFinished = true;
           continue;
         }
@@ -368,10 +369,10 @@ export async function runOrchestrator(
           const freshState = await loadState(config.stateDir, cwd);
           const freshTask = freshState.tasks.find((entry) => entry.id === latestTask.id);
           const route = await routeCriticResult(freshTask ?? latestTask, result.stdout, config);
-          await persistCriticRoute(config, latestTask.id, route);
+           await persistCriticRoute(config, latestTask.id, route, cwd);
 
           if (route === 'blocked') {
-            await setTaskStatus(config, latestTask.id, 'blocked', null);
+             await setTaskStatus(config, latestTask.id, 'blocked', null, cwd);
             taskFinished = true;
             continue;
           }
@@ -380,7 +381,7 @@ export async function runOrchestrator(
         }
 
         if (phase === 'frame') {
-           const approved = await awaitGate(config, runtimeHooks, latestTask.id, 'frame');
+            const approved = await awaitGate(config, runtimeHooks, latestTask.id, 'frame', cwd);
           if (!approved) {
             taskFinished = true;
           }
