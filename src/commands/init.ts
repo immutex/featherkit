@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import { basename, dirname } from 'path';
 import { existsSync } from 'fs';
 import { mkdir, writeFile } from 'fs/promises';
@@ -16,14 +16,26 @@ import { writeIfNotExists } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
 import { generateClaudeCodeConfig } from '../generators/claude-code.js';
 import { generateOpenCodeConfig } from '../generators/opencode.js';
-import type { FeatherConfig, Clients, ModelConfig } from '../config/schema.js';
+import { ClientsSchema, type FeatherConfig, type Clients, type ModelConfig } from '../config/schema.js';
 
 // ── Exported testable init logic ──────────────────────────────────────────────
 
 export interface InitOptions {
   force?: boolean;
+  name?: string;
   preset?: string;
+  clients?: Clients;
+  yes?: boolean;
   localOnly?: boolean;
+}
+
+function parseClientsOption(value: string): Clients {
+  const parsed = ClientsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new InvalidArgumentError('Expected one of: both, claude-code, opencode.');
+  }
+
+  return parsed.data;
 }
 
 export async function runInit(cwd: string, options: InitOptions): Promise<void> {
@@ -37,13 +49,13 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
   log.bold('\nFeatherKit init\n');
 
   // 1. Project name
-  const projectName = await input({
+  const projectName = options.name ?? await input({
     message: 'Project name:',
     default: dirName,
   });
 
   // 2. Client selection
-  const clients = await select<Clients>({
+  const clients = options.clients ?? await select<Clients>({
     message: 'Which coding clients will you use?',
     choices: [
       { name: 'Both (Claude Code + OpenCode)', value: 'both' },
@@ -122,7 +134,7 @@ async function buildConfig(cwd: string, options: InitOptions): Promise<FeatherCo
   log.info(`Integrations: ${enabledIntegrations.length ? enabledIntegrations.join(', ') : 'none'}`);
   log.blank();
 
-  const ok = await confirm({ message: 'Create these files?', default: true });
+  const ok = options.yes ? true : await confirm({ message: 'Create these files?', default: true });
   if (!ok) {
     log.info('Aborted.');
     process.exit(0);
@@ -219,7 +231,10 @@ export async function scaffoldFiles(
 export const initCommand = new Command('init')
   .description('Scaffold project structure, skills, and MCP config')
   .option('--force', 'Overwrite existing files')
+  .option('--name <name>', 'Use the provided project name without prompting')
   .option('--preset <name>', 'Skip model selection and use a preset (balanced, low-cost, high-quality, open-source)')
+  .option('--clients <client>', 'Use the provided clients (both, claude-code, opencode) without prompting', parseClientsOption)
+  .option('-y, --yes', 'Skip confirmation and create files immediately')
   .option('--local-only', 'Skip all integration prompts')
   .action(async (options: InitOptions) => {
     try {
