@@ -7,10 +7,11 @@ import { SectionLabel } from '@/components/ui/SectionLabel';
 import type { TaskEntry, Role, Phase, Project } from '@/data/mock';
 import type { TabId } from '@/components/Sidebar';
 import { cn } from '@/lib/cn';
-import { BUILTIN_AGENTS, getBuiltInAgentByRole } from '@/lib/builtin-agents';
+import { BUILTIN_AGENTS, getBuiltInAgentByRole, getModelForRole } from '@/lib/builtin-agents';
+import { USE_MOCK } from '@/lib/env';
 import { motion } from 'framer-motion';
 import { stagger, staggerItem } from '@/lib/motion';
-import { useDashboardProjects, useStateQuery } from '@/lib/queries';
+import { useAgentsQuery, useDashboardProjects, useStateQuery } from '@/lib/queries';
 import { useEventStore } from '@/store/events';
 import {
   Pause, Square, ArrowRight, CheckCircle2, Clock,
@@ -748,8 +749,19 @@ function QueueRow({ task }: { task: TaskEntry }) {
 // ---------------------------------------------------------------------------
 
 function AgentRoster() {
-  const roleAgents = BUILTIN_AGENTS;
-  // Mocked usage — would come from orchestrator metrics.
+  const agentsQuery = useAgentsQuery();
+  const roleAgents = useMemo(() => {
+    if (USE_MOCK || agentsQuery.isLoading || agentsQuery.isError || !agentsQuery.data) {
+      return BUILTIN_AGENTS;
+    }
+
+    return BUILTIN_AGENTS.map((agent) => ({
+      ...agent,
+      model: getModelForRole(agentsQuery.data.models, agent.roleColor),
+    }));
+  }, [agentsQuery.data, agentsQuery.isError, agentsQuery.isLoading]);
+
+  // TODO: real metrics
   const usageByRole: Record<string, { tokens: number; budget: number; calls: number }> = {
     frame:  { tokens: 32400, budget: 120000, calls: 18 },
     build:  { tokens: 84200, budget: 200000, calls: 42 },

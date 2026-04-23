@@ -1,3 +1,5 @@
+import type { ApiModelConfig } from './queries.js';
+
 export type BuiltInRole = 'frame' | 'build' | 'critic' | 'sync';
 
 export type BuiltInAgent = {
@@ -75,4 +77,13 @@ export function getBuiltInAgentByRole(role: string | null | undefined): BuiltInA
   }
 
   return BUILTIN_AGENT_BY_ROLE.get(role as BuiltInRole) ?? null;
+}
+
+export function getModelForRole(models: ApiModelConfig[], role: string): string {
+  const configuredModel = models.find((candidate) => candidate.role === role);
+  if (configuredModel) {
+    return `${configuredModel.provider}/${configuredModel.model}`;
+  }
+
+  return getBuiltInAgentByRole(role)?.model ?? '';
 }
