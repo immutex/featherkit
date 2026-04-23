@@ -10,7 +10,15 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomBytes } from 'crypto';
 
-import { scaffoldFiles } from '../src/commands/init.js';
+vi.mock('@inquirer/prompts', () => ({
+  input: vi.fn(async ({ default: defaultValue }: { default?: string }) => defaultValue ?? 'test-project'),
+  select: vi.fn(async ({ default: defaultValue, choices }: { default?: string; choices?: Array<{ value: string }> }) => defaultValue ?? choices?.[0]?.value ?? 'both'),
+  checkbox: vi.fn(async () => []),
+  confirm: vi.fn(async () => true),
+}));
+
+import { checkbox, confirm, input, select } from '@inquirer/prompts';
+import { initCommand, runInit, scaffoldFiles } from '../src/commands/init.js';
 import { runDoctor } from '../src/commands/doctor.js';
 import { defaultConfig } from '../src/config/defaults.js';
 import { getAllTemplates } from '../src/templates/index.js';
@@ -19,6 +27,61 @@ import type { FeatherConfig } from '../src/config/schema.js';
 function makeTmpDir(): string {
   return join(tmpdir(), `fa-init-test-${randomBytes(6).toString('hex')}`);
 }
+
+describe('runInit', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = makeTmpDir();
+    await mkdir(tmpDir, { recursive: true });
+    (input as any).mockClear();
+    (select as any).mockClear();
+    (checkbox as any).mockClear();
+    (confirm as any).mockClear();
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('creates all expected files without interactive prompts when flags are provided', async () => {
+    await runInit(tmpDir, {
+      name: 'test',
+      preset: 'balanced',
+      clients: 'claude-code',
+      yes: true,
+      localOnly: true,
+    });
+
+    expect(input).not.toHaveBeenCalled();
+    expect(select).not.toHaveBeenCalled();
+    expect(checkbox).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+
+    const config = defaultConfig('test', 'balanced');
+    const templates = getAllTemplates({ ...config, clients: 'claude-code' });
+    for (const { relativePath } of templates) {
+      if (relativePath.endsWith('.gitkeep')) continue;
+      expect(existsSync(join(tmpDir, relativePath)), `Missing: ${relativePath}`).toBe(true);
+    }
+  });
+
+  it('still runs the interactive prompts when flags are omitted', async () => {
+    await runInit(tmpDir, {});
+
+    expect(input).toHaveBeenCalledTimes(1);
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(checkbox).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('includes non-interactive flags in init help output', () => {
+    const helpText = initCommand.helpInformation();
+    expect(helpText).toContain('--name <name>');
+    expect(helpText).toContain('--clients <client>');
+    expect(helpText).toContain('-y, --yes');
+  });
+});
 
 // ── scaffoldFiles ─────────────────────────────────────────────────────────────
 

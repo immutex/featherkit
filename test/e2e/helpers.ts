@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { defaultConfig } from '../../src/config/defaults.js';
-import { scaffoldFiles } from '../../src/commands/init.js';
+import { runInit } from '../../src/commands/init.js';
 import { DEFAULT_WORKFLOW_TEXT } from '../../src/workflow/default.js';
 
 const TMP_PREFIX = 'featherkit-e2e-';
@@ -17,8 +17,15 @@ async function createFakeBinary(binDir: string, name: string): Promise<void> {
 
 export async function createTmpProject(projectName: string, options?: { installPackage?: boolean; fakeBinaries?: string[] }) {
   const tmpDir = await mkdtemp(join(tmpdir(), TMP_PREFIX));
-  const config = defaultConfig(projectName);
-  await scaffoldFiles(tmpDir, config, true);
+  const config = defaultConfig(projectName, 'balanced');
+  await runInit(tmpDir, {
+    name: projectName,
+    preset: 'balanced',
+    clients: 'both',
+    yes: true,
+    localOnly: true,
+    force: true,
+  });
   await mkdir(dirname(join(tmpDir, config.workflow)), { recursive: true });
   await writeFile(join(tmpDir, config.workflow), DEFAULT_WORKFLOW_TEXT, 'utf8');
 
