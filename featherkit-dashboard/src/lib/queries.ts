@@ -84,6 +84,16 @@ export type ApiConnections = {
   providers: Array<{ provider: string; connected: boolean }>;
 };
 
+export type ApiModelConfig = {
+  role: string;
+  provider: string;
+  model: string;
+};
+
+export type ApiAgents = {
+  models: ApiModelConfig[];
+};
+
 export type ApiVerificationCheck = {
   status: 'pass' | 'fail' | 'skipped';
   output?: string;
@@ -190,6 +200,31 @@ async function getMockConnections(): Promise<ApiConnections> {
       provider: connection.provider,
       connected: connection.status === 'connected',
     })),
+  };
+}
+
+function splitProviderModel(value: string): { provider: string; model: string } {
+  const slashIndex = value.indexOf('/');
+  if (slashIndex === -1) {
+    return { provider: 'unknown', model: value };
+  }
+
+  return {
+    provider: value.slice(0, slashIndex),
+    model: value.slice(slashIndex + 1),
+  };
+}
+
+async function getMockAgents(): Promise<ApiAgents> {
+  return {
+    models: BUILTIN_AGENTS.map((agent) => {
+      const { provider, model } = splitProviderModel(agent.model);
+      return {
+        role: agent.roleColor,
+        provider,
+        model,
+      };
+    }),
   };
 }
 
@@ -910,6 +945,14 @@ export function useConnectionsQuery() {
   });
 }
 
+export function useAgentsQuery() {
+  return useQuery({
+    queryKey: ['agents'],
+    queryFn: () => (USE_MOCK ? getMockAgents() : apiGet<ApiAgents>('/api/agents')),
+    staleTime: USE_MOCK ? Infinity : 10_000,
+  });
+}
+
 export function useDashboardProjects(): Project[] {
   const { data } = useStateQuery();
 
@@ -999,6 +1042,26 @@ export function usePutWorkflow() {
       queryClient.setQueryData(['workflow'], workflow);
       if (!USE_MOCK) {
         await queryClient.invalidateQueries({ queryKey: ['workflow'] });
+      }
+    },
+  });
+}
+
+export function useUpdateAgents() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (agents: ApiAgents) => {
+      if (USE_MOCK) {
+        return agents;
+      }
+
+      return apiPut<ApiAgents>('/api/agents', agents);
+    },
+    onSuccess: async (agents) => {
+      queryClient.setQueryData(['agents'], agents);
+      if (!USE_MOCK) {
+        await queryClient.invalidateQueries({ queryKey: ['agents'] });
       }
     },
   });

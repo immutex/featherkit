@@ -1,34 +1,68 @@
-import { useState } from 'react';
-import { FK_DATA, type AgentConfig } from '@/data/mock';
+import { useMemo, useState } from 'react';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { MotionCard, Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Toggle } from '@/components/ui/Toggle';
 import { cn } from '@/lib/cn';
+import { type ApiModelConfig, useAgentsQuery, useUpdateAgents } from '@/lib/queries';
 import { motion, AnimatePresence } from 'framer-motion';
 import { stagger, staggerItem, fadeUp } from '@/lib/motion';
-import { Bot, Plus, Trash2, Save, X, MessageSquare, Wrench } from 'lucide-react';
+import { Bot, Save, X } from 'lucide-react';
+
+type AgentConfig = {
+  id: string;
+  name: string;
+  role: string;
+  roleColor: string;
+  provider: string;
+  model: string;
+};
+
+const ROLE_ORDER = ['frame', 'build', 'critic', 'sync'];
+
+function roleLabel(role: string): string {
+  return role[0]?.toUpperCase() + role.slice(1) || role;
+}
+
+function toAgentConfig(model: ApiModelConfig): AgentConfig {
+  return {
+    id: model.role,
+    name: roleLabel(model.role),
+    role: model.role,
+    roleColor: model.role,
+    provider: model.provider,
+    model: model.model,
+  };
+}
 
 export function AgentsView() {
-  const [agents, setAgents] = useState(FK_DATA.agents);
+  const agentsQuery = useAgentsQuery();
+  const updateAgents = useUpdateAgents();
   const [editing, setEditing] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const agents = useMemo(
+    () => [...(agentsQuery.data?.models ?? [])]
+      .sort((a, b) => {
+        const aIndex = ROLE_ORDER.indexOf(a.role);
+        const bIndex = ROLE_ORDER.indexOf(b.role);
+        return (aIndex === -1 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex === -1 ? Number.MAX_SAFE_INTEGER : bIndex);
+      })
+      .map(toAgentConfig),
+    [agentsQuery.data],
+  );
 
-  function handleDelete(id: string) {
-    setAgents(a => a.filter(x => x.id !== id));
-    if (editing === id) setEditing(null);
-  }
+  async function handleSave(agent: AgentConfig) {
+    if (!agentsQuery.data) {
+      return;
+    }
 
-  function handleSave(agent: AgentConfig) {
-    setAgents(a => a.map(x => (x.id === agent.id ? agent : x)));
+    await updateAgents.mutateAsync({
+      models: agentsQuery.data.models.map((model) =>
+        model.role === agent.role
+          ? { role: agent.role, provider: agent.provider, model: agent.model }
+          : model,
+      ),
+    });
     setEditing(null);
-    setCreating(false);
-  }
-
-  function handleCreate(agent: AgentConfig) {
-    setAgents(a => [...a, agent]);
-    setCreating(false);
   }
 
   return (
@@ -39,20 +73,26 @@ export function AgentsView() {
             <SectionLabel className="mb-1">Configuration</SectionLabel>
             <h1 className="text-xl font-semibold tracking-tight">Agents</h1>
           </div>
-          <Button variant="accent" size="sm" onClick={() => setCreating(true)}>
-            <Plus size={14} />Create Agent
-          </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto fk-scroll p-8">
+        {agentsQuery.isLoading ? (
+          <Card className="p-6 text-sm text-ink-4">Loading agent models…</Card>
+        ) : agentsQuery.isError ? (
+          <Card className="p-6 space-y-3">
+            <div className="text-sm text-err">{agentsQuery.error.message}</div>
+            <Button variant="outline" size="sm" onClick={() => void agentsQuery.refetch()}>Retry</Button>
+          </Card>
+        ) : (
         <AnimatePresence mode="wait">
-          {(editing || creating) ? (
+          {editing ? (
             <motion.div key="editor" variants={fadeUp} initial="initial" animate="animate" exit={{ opacity: 0, transition: { duration: 0.15 } }}>
               <AgentEditor
-                agent={editing ? agents.find(a => a.id === editing)! : undefined}
-                onSave={editing ? handleSave : handleCreate}
-                onCancel={() => { setEditing(null); setCreating(false); }}
+                agent={agents.find(a => a.id === editing)}
+                isSaving={updateAgents.isPending}
+                onSave={handleSave}
+                onCancel={() => setEditing(null)}
               />
             </motion.div>
           ) : (
@@ -68,13 +108,13 @@ export function AgentsView() {
                   <AgentCard
                     agent={agent}
                     onEdit={() => setEditing(agent.id)}
-                    onDelete={agent.builtIn ? undefined : () => handleDelete(agent.id)}
                   />
                 </motion.div>
               ))}
             </motion.div>
           )}
         </AnimatePresence>
+        )}
       </div>
     </div>
   );
@@ -96,7 +136,7 @@ const colorBorder: Record<string, string> = {
   accent: 'border-t-accent',
 };
 
-function AgentCard({ agent, onEdit, onDelete }: { agent: AgentConfig; onEdit: () => void; onDelete?: () => void }) {
+function AgentCard({ agent, onEdit }: { agent: AgentConfig; onEdit: () => void }) {
   return (
     <MotionCard className={cn('overflow-hidden hover:border-border-light transition-colors', colorBorder[agent.roleColor])}>
       <div className={cn('h-1', {
@@ -114,31 +154,24 @@ function AgentCard({ agent, onEdit, onDelete }: { agent: AgentConfig; onEdit: ()
             </div>
             <div>
               <div className="text-base font-semibold">{agent.name}</div>
-              <div className="text-xs text-ink-4 font-mono">{agent.model}</div>
+              <div className="text-xs text-ink-4 font-mono">{agent.provider}/{agent.model}</div>
             </div>
           </div>
-          {agent.builtIn && <Badge tone="muted">Built-in</Badge>}
+          <Badge tone="muted">{agent.role}</Badge>
         </div>
 
-        <div className="space-y-2 text-sm mb-4">
-          <div className="flex items-center gap-2 text-ink-3">
-            <MessageSquare size={14} className="text-ink-4 shrink-0" />
-            <span className="truncate">{agent.systemPrompt.slice(0, 80)}…</span>
+        <div className="space-y-3 text-sm mb-4">
+          <div>
+            <div className="text-xs text-ink-5 uppercase tracking-wider mb-1">Provider</div>
+            <div className="text-ink-2 font-medium">{agent.provider}</div>
           </div>
-          <div className="flex items-center gap-2 text-ink-3">
-            <Wrench size={14} className="text-ink-4 shrink-0" />
-            <span>{agent.skills.length} skill{agent.skills.length !== 1 ? 's' : ''}</span>
-            <span className="text-ink-5">·</span>
-            <span>{agent.mcpServers.length} MCP server{agent.mcpServers.length !== 1 ? 's' : ''}</span>
+          <div>
+            <div className="text-xs text-ink-5 uppercase tracking-wider mb-1">Model</div>
+            <div className="text-ink-3 font-mono break-all">{agent.model}</div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={onEdit}>Edit</Button>
-          {onDelete && (
-            <Button variant="ghost" size="icon" onClick={onDelete}><Trash2 size={14} className="text-ink-4 hover:text-err" /></Button>
-          )}
-        </div>
+        <Button variant="outline" size="sm" className="w-full" onClick={onEdit}>Edit</Button>
       </div>
     </MotionCard>
   );
@@ -146,63 +179,59 @@ function AgentCard({ agent, onEdit, onDelete }: { agent: AgentConfig; onEdit: ()
 
 function AgentEditor({
   agent,
+  isSaving,
   onSave,
   onCancel,
 }: {
   agent?: AgentConfig;
+  isSaving: boolean;
   onSave: (a: AgentConfig) => void;
   onCancel: () => void;
 }) {
-  const isEdit = !!agent;
-  const [name, setName] = useState(agent?.name || '');
-  const [systemPrompt, setSystemPrompt] = useState(agent?.systemPrompt || '');
+  const [provider, setProvider] = useState(agent?.provider || '');
   const [model, setModel] = useState(agent?.model || '');
-  const [roleColor, setRoleColor] = useState(agent?.roleColor || 'accent');
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(agent?.skills || []);
-  const [selectedMcps, setSelectedMcps] = useState<string[]>(agent?.mcpServers || []);
-
-  const allSkills = FK_DATA.skills;
-  const allMcps = FK_DATA.mcpServers;
-  const colors = ['frame', 'build', 'critic', 'sync', 'accent'];
 
   function handleSave() {
-    const a: AgentConfig = {
-      id: agent?.id || `agent-custom-${Date.now()}`,
-      name: name || 'Untitled Agent',
-      builtIn: agent?.builtIn || false,
-      roleColor,
-      systemPrompt,
-      model: model || 'anthropic/claude-sonnet-4-6',
-      skills: selectedSkills,
-      mcpServers: selectedMcps,
-    };
-    onSave(a);
+    if (!agent) {
+      return;
+    }
+
+    onSave({
+      ...agent,
+      provider: provider.trim(),
+      model: model.trim(),
+    });
   }
 
-  function toggleSkill(id: string) {
-    setSelectedSkills(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
-  }
-  function toggleMcp(name: string) {
-    setSelectedMcps(s => s.includes(name) ? s.filter(x => x !== name) : [...s, name]);
+  if (!agent) {
+    return null;
   }
 
   return (
     <div className="max-w-[800px]">
       <Card className="p-6">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold">{isEdit ? `Edit ${agent!.name}` : 'Create Agent'}</h2>
+          <h2 className="text-lg font-semibold">Edit {agent.name}</h2>
           <Button variant="ghost" size="icon" onClick={onCancel}><X size={16} /></Button>
         </div>
 
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Name</label>
+              <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Role</label>
               <input
-                value={name}
-                onChange={e => setName(e.target.value)}
+                value={agent.role}
+                readOnly
                 className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
-                placeholder="Agent name"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Provider</label>
+              <input
+                value={provider}
+                onChange={e => setProvider(e.target.value)}
+                className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
+                placeholder="anthropic"
               />
             </div>
             <div>
@@ -211,75 +240,15 @@ function AgentEditor({
                 value={model}
                 onChange={e => setModel(e.target.value)}
                 className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink font-mono focus:border-accent focus:outline-none"
-                placeholder="provider/model"
+                placeholder="claude-sonnet-4-6"
               />
             </div>
           </div>
 
-          <div>
-            <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Color</label>
-            <div className="flex gap-2">
-              {colors.map(c => (
-                <button
-                  key={c}
-                  onClick={() => setRoleColor(c)}
-                  className={cn(
-                    'w-8 h-8 rounded-lg border-2 transition-all duration-200',
-                    roleColor === c ? 'scale-110 border-white/30' : 'border-transparent hover:border-white/10',
-                    c === 'frame' && 'bg-role-frame',
-                    c === 'build' && 'bg-role-build',
-                    c === 'critic' && 'bg-role-critic',
-                    c === 'sync' && 'bg-role-sync',
-                    c === 'accent' && 'bg-accent',
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">System Prompt</label>
-            <textarea
-              value={systemPrompt}
-              onChange={e => setSystemPrompt(e.target.value)}
-              className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink resize-none focus:border-accent focus:outline-none h-32"
-              placeholder="Instructions for the agent..."
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">Skills</label>
-              <Card className="p-3 space-y-2">
-                {allSkills.map(s => (
-                  <label key={s.id} className="flex items-center gap-2.5 cursor-pointer">
-                    <Toggle checked={selectedSkills.includes(s.id)} onChange={() => toggleSkill(s.id)} />
-                    <div>
-                      <div className="text-sm font-medium">{s.name}</div>
-                      <div className="text-xs text-ink-4">{s.desc}</div>
-                    </div>
-                  </label>
-                ))}
-              </Card>
-            </div>
-            <div>
-              <label className="text-xs text-ink-5 uppercase tracking-wider mb-1.5 block">MCP Servers</label>
-              <Card className="p-3 space-y-2">
-                {allMcps.map(m => (
-                  <label key={m.name} className="flex items-center gap-2.5 cursor-pointer">
-                    <Toggle checked={selectedMcps.includes(m.name)} onChange={() => toggleMcp(m.name)} />
-                    <div>
-                      <div className="text-sm font-medium">{m.name}</div>
-                      <div className="text-xs text-ink-4">{m.tools} tools · {m.status}</div>
-                    </div>
-                  </label>
-                ))}
-              </Card>
-            </div>
-          </div>
-
           <div className="flex items-center gap-3 pt-2">
-            <Button variant="accent" size="sm" onClick={handleSave}><Save size={14} />Save Agent</Button>
+            <Button variant="accent" size="sm" onClick={handleSave} disabled={isSaving || provider.trim().length === 0 || model.trim().length === 0}>
+              <Save size={14} />{isSaving ? 'Saving…' : 'Save Agent'}
+            </Button>
             <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
           </div>
         </div>
