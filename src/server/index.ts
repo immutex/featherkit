@@ -86,7 +86,7 @@ export async function startServer(config: FeatherConfig, port: number, options: 
     });
   });
 
-  const wsServer = createWsServer(server, token);
+  const wsServer = createWsServer(server, token, config.stateDir, cwd);
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);

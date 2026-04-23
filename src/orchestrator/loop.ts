@@ -9,6 +9,7 @@ import { loadState, saveState } from '../mcp/state-io.js';
 import { DEFAULT_WORKFLOW } from '../workflow/default.js';
 import { nextStep } from '../workflow/engine.js';
 import { WorkflowSchema, type Workflow } from '../workflow/schema.js';
+import { createEventLogger } from './event-log.js';
 import { publishOrchestratorEvent, type OrchestratorEvent, type PhaseRunStatus } from './events.js';
 import { GatePauseError } from './gates.js';
 import { routeCriticResult } from './router.js';
@@ -256,6 +257,14 @@ export async function runOrchestrator(
   const cwd = process.cwd();
   const workflow = loadWorkflow(config);
   const memoryDb = config.memory.enabled ? openMemoryDb(resolveMemoryDbPath(config, cwd)) : null;
+  const eventLogger = createEventLogger(config.stateDir, cwd);
+  const runtimeHooks: OrchestratorHooks = {
+    ...hooks,
+    onEvent: (event) => {
+      eventLogger.emit(event);
+      hooks?.onEvent?.(event);
+    },
+  };
 
   try {
     while (true) {
@@ -270,8 +279,8 @@ export async function runOrchestrator(
       if (opts?.dryRun) {
         const phase = nextPhase(task, workflow);
         if (phase) {
-          emit(hooks, { type: 'phase:start', taskId: task.id, phase });
-          emit(hooks, { type: 'phase:stdout', line: `[dry-run] Would run /${phase} on task ${task.id}` });
+           emit(runtimeHooks, { type: 'phase:start', taskId: task.id, phase });
+           emit(runtimeHooks, { type: 'phase:stdout', line: `[dry-run] Would run /${phase} on task ${task.id}` });
         }
         return;
       }
@@ -288,20 +297,20 @@ export async function runOrchestrator(
           latestTask.status = 'done';
           if (latestState.currentTask === latestTask.id) latestState.currentTask = null;
           await saveState(latestState, config.stateDir, cwd);
-          emit(hooks, { type: 'task:done', taskId: latestTask.id });
+           emit(runtimeHooks, { type: 'task:done', taskId: latestTask.id });
           taskFinished = true;
           continue;
         }
 
         if (phase === 'sync') {
-          const approved = await awaitGate(config, hooks, latestTask.id, 'sync');
+           const approved = await awaitGate(config, runtimeHooks, latestTask.id, 'sync');
           if (!approved) {
             taskFinished = true;
             continue;
           }
         }
 
-        emit(hooks, { type: 'phase:start', taskId: latestTask.id, phase });
+         emit(runtimeHooks, { type: 'phase:start', taskId: latestTask.id, phase });
 
         const memoryContext = memoryDb
           ? await retrieveMemoryContext(memoryDb, latestTask, config)
@@ -311,12 +320,12 @@ export async function runOrchestrator(
         let result;
         try {
           result = await runPhase(
-            latestTask,
-            phase,
-            (line) => emit(hooks, { type: 'phase:stdout', line }),
-            config,
-            memoryBlock,
-          );
+             latestTask,
+             phase,
+             (line) => emit(runtimeHooks, { type: 'phase:stdout', line }),
+             config,
+             memoryBlock,
+           );
         } catch (error) {
           result = {
             status: 'failed' as const,
@@ -331,8 +340,8 @@ export async function runOrchestrator(
           await persistMemoryTrace(config, latestTask, phase, memoryContext.trace, cwd);
         }
 
-        emit(hooks, {
-          type: 'phase:complete',
+         emit(runtimeHooks, {
+           type: 'phase:complete',
           taskId: latestTask.id,
           phase,
           status: result.status,
@@ -340,8 +349,8 @@ export async function runOrchestrator(
         });
 
         if (result.status !== 'ok') {
-          emit(hooks, {
-            type: 'phase:failed',
+           emit(runtimeHooks, {
+             type: 'phase:failed',
             taskId: latestTask.id,
             phase,
             reason: failureReason(result.status, result.stderr),
@@ -371,7 +380,7 @@ export async function runOrchestrator(
         }
 
         if (phase === 'frame') {
-          const approved = await awaitGate(config, hooks, latestTask.id, 'frame');
+           const approved = await awaitGate(config, runtimeHooks, latestTask.id, 'frame');
           if (!approved) {
             taskFinished = true;
           }
@@ -387,6 +396,11 @@ export async function runOrchestrator(
 
     // The orchestrator loop must not throw.
   } finally {
+    try {
+      await eventLogger.close();
+    } catch (error) {
+      console.error(`[feather] event-log:close-failed reason=${error instanceof Error ? error.message : String(error)}`);
+    }
     memoryDb?.close();
   }
 }

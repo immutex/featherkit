@@ -3,7 +3,8 @@ import type { Duplex } from 'node:stream';
 import { URL } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { subscribeToOrchestratorEvents, type OrchestratorEvent } from '../orchestrator/events.js';
+import type { OrchestratorEvent } from '../orchestrator/events.js';
+import { tailEventLog } from './event-tail.js';
 
 type WsServerHandle = {
   close: () => Promise<void>;
@@ -24,9 +25,9 @@ function writeUnauthorized(socket: Duplex): void {
   socket.destroy();
 }
 
-export function createWsServer(httpServer: HttpServer, token: string, heartbeatMs = 4_000): WsServerHandle {
+export function createWsServer(httpServer: HttpServer, token: string, stateDir: string, cwd: string, heartbeatMs = 4_000): WsServerHandle {
   const wss = new WebSocketServer({ noServer: true });
-  const unsubscribe = subscribeToOrchestratorEvents((event: OrchestratorEvent) => {
+  const stopTailing = tailEventLog(stateDir, cwd, (event: OrchestratorEvent) => {
     broadcastJson(wss, event);
   });
 
@@ -59,7 +60,7 @@ export function createWsServer(httpServer: HttpServer, token: string, heartbeatM
   return {
     close: async () => {
       clearInterval(heartbeatTimer);
-      unsubscribe();
+      stopTailing();
       await new Promise<void>((resolve, reject) => {
         wss.close((error) => {
           if (error) {

@@ -21,11 +21,11 @@ Implement cross-process event relay so that `feather orchestrate` (separate OS p
 - **`test/server/event-tail.test.ts`** *(new)* — write lines to a temp file after tail starts, verify `onEvent` fires for each new line.
 
 ## Done Criteria
-- [ ] Running `feather orchestrate --dry-run` in terminal A and `feather serve` in terminal B: WS client receives `phase:start`, `phase:complete`, `task:done` events within 1s of the orchestrator emitting them.
-- [ ] `.project-state/events.jsonl` exists and contains valid JSON lines after an orchestrator run.
-- [ ] `feather serve` started after an orchestrator run does NOT replay old events (tail starts at current EOF).
-- [ ] `tailEventLog` stop function prevents further file-watch callbacks after calling.
-- [ ] `bun run build` passes. `bun test test/orchestrator/event-log.test.ts test/server/event-tail.test.ts` passes.
+- [x] Running `feather orchestrate --dry-run` in terminal A and `feather serve` in terminal B: WS client receives `phase:start`, `phase:complete`, `task:done` events within 1s of the orchestrator emitting them.
+- [x] `.project-state/events.jsonl` exists and contains valid JSON lines after an orchestrator run.
+- [x] `feather serve` started after an orchestrator run does NOT replay old events (tail starts at current EOF).
+- [x] `tailEventLog` stop function prevents further file-watch callbacks after calling.
+- [x] `bun run build` passes. `bun test test/orchestrator/event-log.test.ts test/server/event-tail.test.ts` passes.
 
 ## Risks
 - `fs.watch` on Linux uses `inotify`. On some systems it fires once per `appendFile` call regardless of byte count — verify the tail reader correctly handles multi-line appends in a single watch event.
