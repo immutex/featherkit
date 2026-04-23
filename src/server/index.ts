@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
-import { URL } from 'node:url';
+import { URL, fileURLToPath } from 'node:url';
 
 import type { FeatherConfig } from '../config/schema.js';
 import { requireAuth } from './auth.js';
@@ -13,15 +13,19 @@ import { handleStateRoute } from './routes/state.js';
 import { handleTasksRoute } from './routes/tasks.js';
 import { handleVerificationRoute } from './routes/verification.js';
 import { handleWorkflowRoute } from './routes/workflow.js';
+import { resolveStaticFilePath, serveStaticFile } from './static.js';
 import { createWsServer } from './ws.js';
 import { sendJson } from './utils.js';
 
 type StartServerOptions = {
   cwd?: string;
   readOnly?: boolean;
+  dashboardDistDir?: string;
 };
 
 const DASHBOARD_DEV_ORIGIN = 'http://localhost:5173';
+export const DASHBOARD_DIST_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'featherkit-dashboard', 'dist');
+const DASHBOARD_DIST_DIR_FROM_SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'featherkit-dashboard', 'dist');
 
 export type DashboardServer = {
   token: string;
@@ -46,9 +50,27 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   res.setHeader('Vary', 'Origin');
 }
 
+async function resolveDashboardDistDir(override?: string): Promise<string> {
+  if (override) {
+    return override;
+  }
+
+  for (const candidate of [DASHBOARD_DIST_DIR, DASHBOARD_DIST_DIR_FROM_SOURCE]) {
+    try {
+      await access(join(candidate, 'index.html'));
+      return candidate;
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  return DASHBOARD_DIST_DIR;
+}
+
 export async function startServer(config: FeatherConfig, port: number, options: StartServerOptions = {}): Promise<DashboardServer> {
   const cwd = options.cwd ?? process.cwd();
   const readOnly = options.readOnly ?? false;
+  const dashboardDistDir = await resolveDashboardDistDir(options.dashboardDistDir);
   const token = randomBytes(32).toString('hex');
   const tokenPath = join(cwd, config.stateDir, 'dashboard.token');
 
@@ -57,13 +79,45 @@ export async function startServer(config: FeatherConfig, port: number, options: 
 
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
-      const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+      const rawUrl = req.url ?? '/';
+      const rawPathname = rawUrl.split('?')[0] || '/';
+      const url = new URL(rawUrl, `http://${req.headers.host ?? '127.0.0.1'}`);
       const pathname = url.pathname;
 
-       setCorsHeaders(req, res);
+      setCorsHeaders(req, res);
+
+      if (req.method === 'GET' && pathname === '/app-config.js') {
+        res.writeHead(200, {
+          'Content-Type': 'application/javascript; charset=utf-8',
+          'Cache-Control': 'no-cache',
+        });
+        res.end(`window.__FEATHERKIT_TOKEN__ = ${JSON.stringify(token)};\n`);
+        return;
+      }
 
       if (!pathname.startsWith('/api/')) {
-        notFound(res);
+        if (req.method !== 'GET') {
+          notFound(res);
+          return;
+        }
+
+        const filePath = resolveStaticFilePath(dashboardDistDir, rawPathname);
+        if (!filePath) {
+          notFound(res);
+          return;
+        }
+
+        if (await serveStaticFile(res, filePath)) {
+          return;
+        }
+
+        if (await serveStaticFile(res, join(dashboardDistDir, 'index.html'))) {
+          return;
+        }
+
+        sendJson(res, 404, {
+          error: 'Dashboard assets not found. Run `cd featherkit-dashboard && bun run build`.',
+        });
         return;
       }
 

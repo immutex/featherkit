@@ -79,7 +79,7 @@ async function requestRaw(
   method: string,
   path: string,
   headers: Record<string, string> = {},
-): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined> }> {
+): Promise<{ statusCode: number; headers: Record<string, string | string[] | undefined>; bodyText: string }> {
   return new Promise((resolve, reject) => {
     const request = httpRequest(
       {
@@ -90,11 +90,16 @@ async function requestRaw(
         headers,
       },
       (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
         response.resume();
         response.on('end', () => {
           resolve({
             statusCode: response.statusCode ?? 0,
             headers: response.headers,
+            bodyText: Buffer.concat(chunks).toString('utf8'),
           });
         });
       },
@@ -110,6 +115,7 @@ describe('dashboard server routes', () => {
   let previousCwd: string;
   let config: FeatherConfig;
   let server: DashboardServer;
+  let dashboardDistDir: string;
 
   beforeEach(async () => {
     cwd = makeTmpDir();
@@ -119,8 +125,17 @@ describe('dashboard server routes', () => {
     await mkdir(join(cwd, 'featherkit'), { recursive: true });
     await mkdir(join(cwd, '.project-state'), { recursive: true });
     await mkdir(join(cwd, 'project-docs', 'workflows'), { recursive: true });
+    dashboardDistDir = join(cwd, 'dashboard-dist');
+    await mkdir(join(dashboardDistDir, 'assets'), { recursive: true });
 
     await writeFile(join(cwd, 'featherkit', 'config.json'), `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+    await writeFile(
+      join(dashboardDistDir, 'index.html'),
+      '<!doctype html><html lang="en"><body><div id="root">Dashboard</div></body></html>\n',
+      'utf8',
+    );
+    await writeFile(join(dashboardDistDir, 'assets', 'app-12345678.js'), 'window.__TEST__ = true;\n', 'utf8');
+    await writeFile(join(dashboardDistDir, 'favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>\n', 'utf8');
     await writeFile(
       join(cwd, 'project-docs', 'workflows', 'default.json'),
       `${JSON.stringify({
@@ -157,10 +172,10 @@ describe('dashboard server routes', () => {
         makeTask('task-runnable', { dependsOn: ['dep-done'] }),
       ],
     };
-
+    
     await saveState(state, config.stateDir, cwd);
     process.chdir(cwd);
-    server = await startServer(config, 0, { cwd });
+    server = await startServer(config, 0, { cwd, dashboardDistDir });
   });
 
   afterEach(async () => {
@@ -185,6 +200,53 @@ describe('dashboard server routes', () => {
     expect(response.statusCode).toBe(204);
     expect(response.headers['access-control-allow-origin']).toBe('http://localhost:5173');
     expect(response.headers['access-control-allow-headers']).toBe('Authorization, Content-Type');
+  });
+
+  it('serves app-config.js without auth', async () => {
+    const response = await requestRaw(server.port, 'GET', '/app-config.js');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('application/javascript; charset=utf-8');
+    expect(response.headers['cache-control']).toBe('no-cache');
+    expect(response.bodyText).toBe(`window.__FEATHERKIT_TOKEN__ = ${JSON.stringify(server.token)};\n`);
+  });
+
+  it('serves the dashboard index at root', async () => {
+    const response = await requestRaw(server.port, 'GET', '/');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('text/html; charset=utf-8');
+    expect(response.headers['cache-control']).toBe('no-cache');
+    expect(response.bodyText).toContain('<div id="root">Dashboard</div>');
+  });
+
+  it('serves hashed assets with immutable cache headers', async () => {
+    const response = await requestRaw(server.port, 'GET', '/assets/app-12345678.js');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('application/javascript; charset=utf-8');
+    expect(response.headers['cache-control']).toBe('max-age=31536000, immutable');
+    expect(response.bodyText).toContain('window.__TEST__ = true;');
+  });
+
+  it('falls back to index.html for SPA routes', async () => {
+    const response = await requestRaw(server.port, 'GET', '/memory/graph');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('text/html; charset=utf-8');
+    expect(response.bodyText).toContain('<div id="root">Dashboard</div>');
+  });
+
+  it('returns a helpful 404 when dashboard assets are missing', async () => {
+    await server.close();
+    server = await startServer(config, 0, { cwd, dashboardDistDir: join(cwd, 'missing-dashboard-dist') });
+
+    const response = await requestJson(server.port, 'GET', '/');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.body).toEqual({
+      error: 'Dashboard assets not found. Run `cd featherkit-dashboard && bun run build`.',
+    });
   });
 
   it('returns state json with a valid token', async () => {

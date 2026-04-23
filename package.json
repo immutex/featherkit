@@ -10,6 +10,7 @@
   },
   "files": [
     "dist",
+    "featherkit-dashboard/dist",
     "CHANGELOG.md",
     "README.md",
     "LICENSE"
@@ -21,7 +22,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "node ./node_modules/vitest/vitest.mjs run",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build && cd featherkit-dashboard && bun run build"
   },
   "keywords": [
     "cli",

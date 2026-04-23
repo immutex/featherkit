@@ -10,6 +10,12 @@ export function getApiBaseUrl(): string {
 
 const SESSION_STORAGE_KEY = 'fk-token';
 
+declare global {
+  interface Window {
+    __FEATHERKIT_TOKEN__?: string;
+  }
+}
+
 /**
  * Resolve the API auth token from multiple sources in priority order:
  *   1. VITE_API_TOKEN env var (build-time — dev override)
@@ -35,7 +41,7 @@ export function getApiToken(): string {
   }
 
   // 2. Runtime injection by server (serve-b)
-  const runtimeToken = (window as unknown as Record<string, unknown>).__FEATHERKIT_TOKEN__;
+  const runtimeToken = window.__FEATHERKIT_TOKEN__;
   if (typeof runtimeToken === 'string' && runtimeToken.trim()) {
     return runtimeToken.trim();
   }
