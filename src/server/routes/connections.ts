@@ -183,12 +183,30 @@ export async function listConnectionProviders(
   ];
 
   const authStorage = deps.createPiAuthStorage(join(deps.getAgentDir(), 'auth.json'));
+
+  // Build a lookup from auth.json keys to handle aliasing
+  // e.g. auth.json stores "openai-codex" but config uses "openai"
+  let storedProviders: string[] = [];
+  try {
+    storedProviders = (authStorage as any).list?.() as string[] ?? [];
+  } catch {
+    storedProviders = [];
+  }
+
+  function resolveAuthProvider(provider: string): string {
+    if (storedProviders.includes(provider)) return provider;
+    // Try matching by prefix: "openai" matches "openai-codex"
+    const match = storedProviders.find((key) => key.startsWith(provider));
+    return match ?? provider;
+  }
+
   const piProviderNames = [...configuredModelsByProvider.keys()].filter((provider) => provider !== 'anthropic').sort();
 
   for (const provider of piProviderNames) {
+    const authProvider = resolveAuthProvider(provider);
     try {
-      const hasAuth = piInstalled ? await authStorage.hasAuth(provider) : false;
-      const record = hasAuth ? await authStorage.get(provider) : undefined;
+      const hasAuth = piInstalled ? await authStorage.hasAuth(authProvider) : false;
+      const record = hasAuth ? await authStorage.get(authProvider) : undefined;
       const expiry = extractExpiry(record);
       const status = !piInstalled
         ? 'unauthenticated'
@@ -273,7 +291,19 @@ export async function handleConnectionsRoute(
       return true;
     }
 
-    sendJson(res, 200, { type: 'cli', instruction: `Run: pi login ${provider}` });
+    // Resolve to the actual Pi provider name in case config uses an alias
+    // e.g. config says "openai" but Pi knows it as "openai-codex"
+    let resolvedProvider = provider;
+    try {
+      const authStorage = deps.createPiAuthStorage(join(deps.getAgentDir(), 'auth.json'));
+      const stored = (authStorage as any).list?.() as string[] ?? [];
+      if (!stored.includes(provider)) {
+        const prefixMatch = stored.find((key: string) => key.startsWith(provider));
+        if (prefixMatch) resolvedProvider = prefixMatch;
+      }
+    } catch { /* use provider as-is */ }
+
+    sendJson(res, 200, { type: 'cli', instruction: `Run: pi login ${resolvedProvider}` });
     return true;
   }
 
