@@ -27,7 +27,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run test suite
-        run: bun test -- --testTimeout=30000
+        run: bun test --timeout 30000
 
   build:
     runs-on: ubuntu-latest
