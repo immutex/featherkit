@@ -2,22 +2,45 @@ import { Command } from 'commander';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
+import { execa, type Options as ExecaOptions, type ResultPromise } from 'execa';
+
+type CommandResult = {
+  exitCode?: number | null;
+};
 
 import { FeatherConfigSchema, ProjectStateSchema } from '../config/schema.js';
 import { log } from '../utils/logger.js';
 
 interface CheckResult {
   label: string;
-  pass: boolean;
+  status: 'pass' | 'warn' | 'fail';
   detail?: string;
 }
 
+type CommandRunner = (
+  file: string,
+  args?: readonly string[],
+  options?: ExecaOptions,
+) => Promise<CommandResult>;
+
+interface DoctorDeps {
+  runCommand: CommandRunner;
+}
+
+const defaultDoctorDeps: DoctorDeps = {
+  runCommand: async (file, args, options) => execa(file, args ?? [], options) as unknown as ResultPromise<Record<string, never>>,
+};
+
 function pass(label: string, detail?: string): CheckResult {
-  return { label, pass: true, detail };
+  return { label, status: 'pass', detail };
+}
+
+function warn(label: string, detail?: string): CheckResult {
+  return { label, status: 'warn', detail };
 }
 
 function fail(label: string, detail?: string): CheckResult {
-  return { label, pass: false, detail };
+  return { label, status: 'fail', detail };
 }
 
 async function tryReadJson(filePath: string): Promise<unknown | null> {
@@ -29,7 +52,16 @@ async function tryReadJson(filePath: string): Promise<unknown | null> {
   }
 }
 
-export async function runDoctor(cwd: string): Promise<boolean> {
+async function hasBinary(binary: string, deps: DoctorDeps): Promise<boolean> {
+  try {
+    const result = await deps.runCommand(binary, ['--version'], { reject: false });
+    return (result.exitCode ?? 1) === 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function runDoctor(cwd: string, deps: DoctorDeps = defaultDoctorDeps): Promise<boolean> {
   const results: CheckResult[] = [];
 
   // 1. featherkit/config.json exists and validates
@@ -135,6 +167,20 @@ export async function runDoctor(cwd: string): Promise<boolean> {
       } else {
         results.push(fail('project-docs files', `Missing: ${missingDocs.join(', ')}`));
       }
+
+      const hasClaude = await hasBinary('claude', deps);
+      if (hasClaude) {
+        results.push(pass('Claude CLI', 'claude --version ok'));
+      } else {
+        results.push(fail('Claude CLI', 'Install Claude Code CLI.'));
+      }
+
+      const hasPi = await hasBinary('pi', deps);
+      if (hasPi) {
+        results.push(pass('Pi CLI', 'pi --version ok'));
+      } else {
+        results.push(warn('Pi CLI', 'Optional for non-Claude providers. Install pi to enable provider OAuth flows.'));
+      }
     } else {
       const issues = result.error.issues
         .map((i) => `${i.path.join('.')}: ${i.message}`)
@@ -149,8 +195,10 @@ export async function runDoctor(cwd: string): Promise<boolean> {
 
   let anyFail = false;
   for (const r of results) {
-    if (r.pass) {
+    if (r.status === 'pass') {
       log.success(r.label + (r.detail ? `  ${r.detail}` : ''));
+    } else if (r.status === 'warn') {
+      log.warn(r.label + (r.detail ? `\n  → ${r.detail}` : ''));
     } else {
       log.error(r.label + (r.detail ? `\n  → ${r.detail}` : ''));
       anyFail = true;

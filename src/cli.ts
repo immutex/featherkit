@@ -14,6 +14,7 @@ import { orchestrateCommand } from './commands/orchestrate.js';
 import { approveCommand } from './commands/approve.js';
 import { packagesCommand } from './commands/packages.js';
 import { serveCommand } from './commands/serve.js';
+import { authCommand } from './commands/auth.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,7 +30,7 @@ try {
 const program = new Command();
 
 program
-  .name('featherkit')
+  .name('feather')
   .description('Lean multi-model agentic coding workflow')
   .version(version);
 
@@ -45,5 +46,6 @@ program.addCommand(orchestrateCommand);
 program.addCommand(approveCommand);
 program.addCommand(packagesCommand);
 program.addCommand(serveCommand);
+program.addCommand(authCommand);
 
 program.parse();

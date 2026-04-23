@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FK_DATA } from '@/data/mock';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { Tabs, type TabDef } from '@/components/ui/Tabs';
 import { Card, MotionCard } from '@/components/ui/Card';
@@ -11,12 +11,57 @@ import { Sparkles, Zap, Rocket, Plug, RefreshCw, Settings as SettingsIcon, Exter
 import { cn } from '@/lib/cn';
 import { motion } from 'framer-motion';
 import { fadeUp, stagger, staggerItem } from '@/lib/motion';
+import { apiGet, apiPost } from '@/lib/api';
+import { FK_DATA } from '@/data/mock';
+
+type ProviderStatus = 'connected' | 'unauthenticated' | 'expired' | 'error';
+
+type ProviderConnection = {
+  provider: string;
+  label: string;
+  authType: 'cli' | 'pi';
+  status: ProviderStatus;
+  connected: boolean;
+  installed: boolean;
+  models: string[];
+  usedByRoles: string[];
+  warning?: string;
+};
+
+type ConnectionsResponse = {
+  mcpServers: Record<string, { command?: string; args?: string[]; transport?: string }>;
+  providers: Array<{ provider: string; connected: boolean }>;
+};
+
+type LoginResponse = {
+  type: 'cli' | 'pending';
+  instruction?: string;
+};
+
+type ProvidersQueryResult = {
+  data?: { providers: ProviderConnection[] };
+  error: Error | null;
+  isLoading: boolean;
+  refetch: () => Promise<unknown>;
+};
 
 export function ConnectionsView() {
   const [sub, setSub] = useState('providers');
+  const providersQuery = useQuery({
+    queryKey: ['connections/providers'],
+    queryFn: () => apiGet<{ providers: ProviderConnection[] }>('/api/connections/providers'),
+    refetchInterval: false,
+    staleTime: 2_000,
+  });
+  const connectionsQuery = useQuery({
+    queryKey: ['connections'],
+    queryFn: () => apiGet<ConnectionsResponse>('/api/connections'),
+    staleTime: 10_000,
+  });
+
   const tabs: TabDef[] = [
-    { id: 'providers', label: 'Model providers', count: FK_DATA.connections.length },
-    { id: 'mcp', label: 'MCP servers', count: FK_DATA.mcpServers.length },
+    { id: 'providers', label: 'Model providers', count: providersQuery.data?.providers.length ?? 0 },
+    { id: 'mcp', label: 'MCP servers', count: Object.keys(connectionsQuery.data?.mcpServers ?? {}).length },
     { id: 'skills', label: 'Skills', count: FK_DATA.skills.filter(s => s.installed).length },
   ];
 
@@ -34,8 +79,8 @@ export function ConnectionsView() {
         animate="animate"
         className="flex-1 overflow-y-auto fk-scroll p-8"
       >
-        {sub === 'providers' && <Providers />}
-        {sub === 'mcp' && <McpServers />}
+        {sub === 'providers' && <Providers providersQuery={providersQuery} />}
+        {sub === 'mcp' && <McpServers mcpServers={connectionsQuery.data?.mcpServers ?? {}} />}
         {sub === 'skills' && <Skills />}
       </motion.div>
     </div>
@@ -50,7 +95,72 @@ const providerIcon: Record<string, any> = {
   antigravity: Rocket,
 };
 
-function Providers() {
+function Providers({
+  providersQuery,
+}: {
+  providersQuery: ProvidersQueryResult;
+}) {
+  const [instructions, setInstructions] = useState<Record<string, string>>({});
+  const [polling, setPolling] = useState<{ provider: string; startedAt: number } | null>(null);
+
+  const providers = providersQuery.data?.providers ?? [];
+  const activePollingProvider = useMemo(
+    () => (polling ? providers.find((provider) => provider.provider === polling.provider) ?? null : null),
+    [polling, providers],
+  );
+
+  useEffect(() => {
+    if (!polling) {
+      return;
+    }
+
+    if (activePollingProvider?.connected) {
+      setPolling(null);
+      return;
+    }
+
+    if (Date.now() - polling.startedAt > 60_000) {
+      setPolling(null);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void providersQuery.refetch();
+    }, 2_000);
+
+    return () => window.clearTimeout(timer);
+  }, [activePollingProvider?.connected, polling, providersQuery]);
+
+  const loginMutation = useMutation({
+    mutationFn: async (provider: string) => apiPost<LoginResponse>(`/api/connections/providers/${encodeURIComponent(provider)}/login`),
+    onSuccess: async (response, provider) => {
+      const instruction = response.instruction;
+      if (instruction) {
+        setInstructions((current) => ({ ...current, [provider]: instruction }));
+      }
+
+      if (provider !== 'anthropic') {
+        setPolling({ provider, startedAt: Date.now() });
+      }
+
+      await providersQuery.refetch();
+    },
+  });
+
+  const statusTone = (status: ProviderStatus): 'ok' | 'warn' | 'err' => {
+    if (status === 'connected') return 'ok';
+    if (status === 'error') return 'err';
+    return 'warn';
+  };
+
+  if (providersQuery.isLoading) {
+    return <Card className="p-6 text-sm text-ink-4">Loading provider connections…</Card>;
+  }
+
+  if (providersQuery.error) {
+    return <Card className="p-6 text-sm text-err">{providersQuery.error.message}</Card>;
+  }
+
   return (
     <motion.div
       initial="initial"
@@ -58,17 +168,18 @@ function Providers() {
       variants={stagger(0.1)}
       className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[1100px]"
     >
-      {FK_DATA.connections.map(c => {
-        const connected = c.status === 'connected';
+      {providers.map((c) => {
+        const connected = c.connected;
         const expired = c.status === 'expired';
         const Icon = providerIcon[c.provider] || Plug;
-        const tone = connected ? 'ok' : expired ? 'warn' : 'muted';
+        const tone = statusTone(c.status);
+        const authLabel = c.authType === 'cli' ? 'Claude CLI' : 'Pi OAuth';
         return (
           <motion.div key={c.provider} variants={staggerItem}>
             <MotionCard className="p-5 hover:border-border-light transition-colors">
               <div className="flex items-start gap-4 mb-4">
                 <div className={cn('w-11 h-11 rounded-lg flex items-center justify-center shrink-0',
-                  connected ? 'bg-ok/10 text-ok' : expired ? 'bg-warn/10 text-warn' : 'bg-white/[.04] text-ink-4')}>
+                  connected ? 'bg-ok/10 text-ok' : expired ? 'bg-warn/10 text-warn' : c.status === 'error' ? 'bg-err/10 text-err' : 'bg-white/[.04] text-ink-4')}>
                   <Icon size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -88,9 +199,16 @@ function Providers() {
                 </div>
               )}
 
+              {instructions[c.provider] && (
+                <div className="mb-4 text-sm text-accent bg-accent/5 border border-accent/20 rounded-lg px-3 py-2 flex items-start gap-2">
+                  <ExternalLink size={13} className="mt-0.5 shrink-0" />
+                  <span>{instructions[c.provider]}</span>
+                </div>
+              )}
+
               <div className="space-y-2.5 text-sm mb-5">
-                {c.connectedAt && <div className="flex justify-between"><span className="text-ink-4">Connected</span><span className="font-mono text-ink-2">{c.connectedAt}</span></div>}
-                <div className="flex justify-between"><span className="text-ink-4">Auth</span><span className="font-mono text-ink-2">{c.authType === 'cli' ? 'CLI harness' : 'OAuth (pi-ai)'}</span></div>
+                <div className="flex justify-between"><span className="text-ink-4">Auth</span><span className="font-mono text-ink-2">{authLabel}</span></div>
+                <div className="flex justify-between"><span className="text-ink-4">Install</span><span className="font-mono text-ink-2">{c.installed ? 'available' : 'missing'}</span></div>
                 <div className="flex justify-between"><span className="text-ink-4">Models</span><span className="font-mono text-ink-2">{c.models.length > 0 ? `${c.models.length} available` : '—'}</span></div>
               </div>
 
@@ -111,13 +229,29 @@ function Providers() {
               <div className="flex gap-2">
                 {connected ? (
                   <>
-                    <Button variant="outline" size="sm" className="flex-1"><RefreshCw size={13} />Refresh</Button>
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => void providersQuery.refetch()}><RefreshCw size={13} />Refresh</Button>
                     <Button variant="ghost" size="sm"><SettingsIcon size={13} /></Button>
                   </>
                 ) : expired ? (
-                  <Button variant="accent" size="sm" className="flex-1"><RefreshCw size={13} />Reconnect</Button>
+                  <Button
+                    variant="accent"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => loginMutation.mutate(c.provider)}
+                    disabled={loginMutation.isPending}
+                  >
+                    <RefreshCw size={13} />Reconnect
+                  </Button>
                 ) : (
-                  <Button variant="accent" size="sm" className="flex-1"><ExternalLink size={13} />Login with OAuth</Button>
+                  <Button
+                    variant="accent"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => loginMutation.mutate(c.provider)}
+                    disabled={loginMutation.isPending}
+                  >
+                    <ExternalLink size={13} />{c.provider === 'anthropic' ? 'Show CLI login' : 'Login'}
+                  </Button>
                 )}
               </div>
             </MotionCard>
@@ -128,7 +262,20 @@ function Providers() {
   );
 }
 
-function McpServers() {
+function McpServers({
+  mcpServers,
+}: {
+  mcpServers: Record<string, { command?: string; args?: string[]; transport?: string }>;
+}) {
+  const rows = Object.entries(mcpServers).map(([name, config]) => ({
+    name,
+    command: config.command ?? '—',
+    args: config.args ?? [],
+    transport: config.transport ?? 'stdio',
+    status: 'reachable' as const,
+    tools: '—',
+  }));
+
   return (
     <div className="max-w-[1100px]">
       <div className="flex items-center justify-between mb-5">
@@ -141,7 +288,7 @@ function McpServers() {
             <span>Name</span><span>Command</span><span>Transport</span><span>Tools</span><span>Status</span><span></span>
           </div>
           <motion.div initial="initial" animate="animate" variants={stagger(0.05)}>
-            {FK_DATA.mcpServers.map(s => (
+            {rows.map(s => (
               <motion.div
                 key={s.name}
                 variants={staggerItem}

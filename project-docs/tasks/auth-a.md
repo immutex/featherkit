@@ -35,15 +35,15 @@ This task fills that gap. Claude auth goes through the existing Claude CLI (`cla
   - Provider status badge: green = connected, amber = unauthenticated, red = error.
 
 ## Done Criteria
-- [ ] `feather auth status` outputs a table with at least "claude" row showing connected/disconnected.
-- [ ] `feather auth login anthropic` prints the Claude CLI instruction (does not hang).
-- [ ] `feather auth login openai` (if Pi OpenAI package is installed) shells out to `pi login openai` interactively.
-- [ ] `feather doctor` now fails if `claude` binary is not on PATH, with actionable message.
-- [ ] `feather doctor` warns (does not fail) if `pi` binary is not on PATH.
-- [ ] `GET /api/connections/providers` returns Claude entry with correct status.
-- [ ] Dashboard Connections tab shows provider cards with real status badges (no mock data).
-- [ ] Polling for a Pi provider login eventually resolves to `connected` after successful `pi login`.
-- [ ] `bun run build` passes. `bun test` passes.
+- [x] `feather auth status` outputs a table with at least "claude" row showing connected/disconnected.
+- [x] `feather auth login anthropic` prints the Claude CLI instruction (does not hang).
+- [x] `feather auth login openai` (if Pi OpenAI package is installed) shells out to `pi login openai` interactively.
+- [x] `feather doctor` now fails if `claude` binary is not on PATH, with actionable message.
+- [x] `feather doctor` warns (does not fail) if `pi` binary is not on PATH.
+- [x] `GET /api/connections/providers` returns Claude entry with correct status.
+- [x] Dashboard Connections tab shows provider cards with real status badges (no mock data).
+- [x] Polling for a Pi provider login eventually resolves to `connected` after successful `pi login`.
+- [x] `bun run build` passes. `bun test` passes.
 
 ## Risks
 - `pi login <provider>` spawns an interactive process. Spawning it from an HTTP route (`POST /login`) won't work if it expects a TTY. Solution: return the `pi login <provider>` command as a string for the user to run in their terminal, same as the Claude flow. Only auto-spawn for providers that have non-interactive OAuth (browser-redirect flows). Investigate during build.

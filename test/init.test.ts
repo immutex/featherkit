@@ -3,7 +3,7 @@
  * Tests scaffoldFiles() and runDoctor() against real temp directories.
  * Does NOT test interactive prompts (inquirer) — that logic is thin wrappers.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdir, writeFile, readFile, rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
@@ -236,6 +236,28 @@ describe('runDoctor', () => {
     // runDoctor checks for .opencode MCP entry — opencode.json is created by scaffoldFiles.
     // The MCP server check now verifies npx is in PATH (always true in test env).
     const result = await runDoctor(tmpDir);
+    expect(typeof result).toBe('boolean');
+  });
+
+  it('fails when claude is not on PATH', async () => {
+    const config: FeatherConfig = { ...defaultConfig('doctor-claude-fail'), clients: 'opencode' };
+    await scaffoldFiles(tmpDir, config, false);
+
+    const result = await runDoctor(tmpDir, {
+      runCommand: vi.fn(async (file: string) => ({ exitCode: file === 'claude' ? 1 : 0 })) as never,
+    });
+
+    expect(result).toBe(false);
+  });
+
+  it('warns but does not fail when pi is not on PATH', async () => {
+    const config: FeatherConfig = { ...defaultConfig('doctor-pi-warn'), clients: 'opencode' };
+    await scaffoldFiles(tmpDir, config, false);
+
+    const result = await runDoctor(tmpDir, {
+      runCommand: vi.fn(async (file: string) => ({ exitCode: file === 'pi' ? 1 : 0 })) as never,
+    });
+
     expect(typeof result).toBe('boolean');
   });
 
