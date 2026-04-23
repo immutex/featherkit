@@ -102,6 +102,7 @@ function Providers({
 }) {
   const [instructions, setInstructions] = useState<Record<string, string>>({});
   const [polling, setPolling] = useState<{ provider: string; startedAt: number } | null>(null);
+  const [pendingLogin, setPendingLogin] = useState<string | null>(null);
 
   const providers = providersQuery.data?.providers ?? [];
   const activePollingProvider = useMemo(
@@ -132,7 +133,10 @@ function Providers({
   }, [activePollingProvider?.connected, polling, providersQuery]);
 
   const loginMutation = useMutation({
-    mutationFn: async (provider: string) => apiPost<LoginResponse>(`/api/connections/providers/${encodeURIComponent(provider)}/login`),
+    mutationFn: async (provider: string) => {
+      setPendingLogin(provider);
+      return apiPost<LoginResponse>(`/api/connections/providers/${encodeURIComponent(provider)}/login`);
+    },
     onSuccess: async (response, provider) => {
       const instruction = response.instruction;
       if (instruction) {
@@ -144,6 +148,9 @@ function Providers({
       }
 
       await providersQuery.refetch();
+    },
+    onSettled: () => {
+      setPendingLogin(null);
     },
   });
 
@@ -166,7 +173,7 @@ function Providers({
       initial="initial"
       animate="animate"
       variants={stagger(0.1)}
-      className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[1100px]"
+      className="grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[1100px] items-stretch"
     >
       {providers.map((c) => {
         const connected = c.connected;
@@ -174,9 +181,10 @@ function Providers({
         const Icon = providerIcon[c.provider] || Plug;
         const tone = statusTone(c.status);
         const authLabel = c.authType === 'cli' ? 'Claude CLI' : 'Pi OAuth';
+        const isThisPending = pendingLogin === c.provider;
         return (
-          <motion.div key={c.provider} variants={staggerItem}>
-            <MotionCard className="p-5 hover:border-border-light transition-colors">
+          <motion.div key={c.provider} variants={staggerItem} className="flex">
+            <MotionCard className="p-5 hover:border-border-light transition-colors flex flex-col w-full">
               <div className="flex items-start gap-4 mb-4">
                 <div className={cn('w-11 h-11 rounded-lg flex items-center justify-center shrink-0',
                   connected ? 'bg-ok/10 text-ok' : expired ? 'bg-warn/10 text-warn' : c.status === 'error' ? 'bg-err/10 text-err' : 'bg-white/[.04] text-ink-4')}>
@@ -226,7 +234,7 @@ function Providers({
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-auto pt-2">
                 {connected ? (
                   <>
                     <Button variant="outline" size="sm" className="flex-1" onClick={() => void providersQuery.refetch()}><RefreshCw size={13} />Refresh</Button>
@@ -238,7 +246,7 @@ function Providers({
                     size="sm"
                     className="flex-1"
                     onClick={() => loginMutation.mutate(c.provider)}
-                    disabled={loginMutation.isPending}
+                    disabled={isThisPending}
                   >
                     <RefreshCw size={13} />Reconnect
                   </Button>
@@ -248,7 +256,7 @@ function Providers({
                     size="sm"
                     className="flex-1"
                     onClick={() => loginMutation.mutate(c.provider)}
-                    disabled={loginMutation.isPending}
+                    disabled={isThisPending}
                   >
                     <ExternalLink size={13} />{c.provider === 'anthropic' ? 'Show CLI login' : 'Login'}
                   </Button>
@@ -323,6 +331,7 @@ function McpServers({
 }
 
 function Skills() {
+  // TODO: dash-e — Skills tab is still mock data, wire to real registry later
   const [tab, setTab] = useState<'installed' | 'registry'>('installed');
   const list = tab === 'installed' ? FK_DATA.skills.filter(s => s.installed) : FK_DATA.skills.filter(s => !s.installed);
   return (
