@@ -152,6 +152,19 @@ export const VerificationResultSchema = z.object({
 });
 export type VerificationResult = z.infer<typeof VerificationResultSchema>;
 
+export const VerificationRunCheckResultSchema = z.object({
+  status: z.enum(['pass', 'fail', 'skipped']),
+  output: z.string().optional(),
+  durationMs: z.number().nonnegative(),
+});
+export type VerificationRunCheckResult = z.infer<typeof VerificationRunCheckResultSchema>;
+
+export const VerificationRunSummarySchema = z.object({
+  lastRunAt: z.string().nullable(),
+  checks: z.record(z.string(), VerificationRunCheckResultSchema),
+});
+export type VerificationRunSummary = z.infer<typeof VerificationRunSummarySchema>;
+
 export const PhaseCompletionSchema = z.object({
   phase: ModelRoleSchema,
   verdict: z.enum(['pass', 'warn', 'fail']).optional(),
@@ -194,6 +207,7 @@ export const TaskEntrySchema = z.object({
   handoff: HandoffSchema.optional(),
   reviewNotes: z.string().optional(),
   verifications: z.array(VerificationResultSchema).optional(),
+  verification: VerificationRunSummarySchema.optional(),
   sessionId: z.string().optional(),
   phaseCompletions: z.array(PhaseCompletionSchema).optional(),
   approvals: z.array(ApprovalRecordSchema).optional(),

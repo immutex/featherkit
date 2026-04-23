@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { chmod, mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
@@ -72,6 +72,11 @@ async function appendCompletion(tmpDir: string, taskId: string, phase: ModelRole
   ];
 
   await saveState(state, undefined, tmpDir);
+}
+
+async function writeExecutable(filePath: string, body: string): Promise<void> {
+  await writeFile(filePath, body, 'utf8');
+  await chmod(filePath, 0o755);
 }
 
 describe('orchestrator loop and lock', async () => {
@@ -272,6 +277,64 @@ describe('orchestrator loop and lock', async () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[feather] workflow:stalled task=ORCH-C-STALL remaining=build'));
 
     errorSpy.mockRestore();
+  });
+
+  it('blocks the next agent phase when a workflow requires check fails', async () => {
+    await writeState(tmpDir, [makeTask('ORCH-C-VERIFY')]);
+    await writeFile(
+      join(tmpDir, 'requires-workflow.json'),
+      JSON.stringify({
+        version: 1,
+        start: 'frame',
+        nodes: [
+          { id: 'frame', role: 'frame' },
+          { id: 'build', role: 'build', requires: ['typecheck'] },
+          { id: 'critic', role: 'critic' },
+          { id: 'sync', role: 'sync' },
+        ],
+        edges: [
+          { from: 'frame', to: 'build' },
+          { from: 'build', to: 'critic' },
+          { from: 'critic', to: 'sync' },
+        ],
+      }, null, 2),
+      'utf8',
+    );
+    await writeFile(
+      join(tmpDir, 'tsconfig.json'),
+      JSON.stringify({ compilerOptions: { noEmit: true, strict: true }, include: ['broken.ts'] }, null, 2),
+      'utf8',
+    );
+    await writeFile(join(tmpDir, 'broken.ts'), 'const broken: string = 123;\n', 'utf8');
+    await mkdir(join(tmpDir, 'node_modules', '.bin'), { recursive: true });
+    await writeExecutable(
+      join(tmpDir, 'node_modules', '.bin', 'tsc'),
+      `#!/usr/bin/env bash
+printf 'broken.ts(1,7): error TS2322: Type \'number\' is not assignable to type \'string\'.\n' >&2
+exit 1
+`,
+    );
+    await writeFile(join(tmpDir, 'package.json'), JSON.stringify({ name: 'orch-verify-test' }, null, 2), 'utf8');
+
+    const phases: ModelRole[] = [];
+    runPhaseMock.mockImplementation(async (task: TaskEntry, phase: ModelRole) => {
+      phases.push(phase);
+      await appendCompletion(tmpDir, task.id, phase, phase === 'critic' ? 'pass' : undefined);
+      return { status: 'ok', stdout: '', stderr: '', durationMs: 1 };
+    });
+
+    const config = makeConfig();
+    config.workflow = 'requires-workflow.json';
+
+    const { runOrchestrator } = await import('../../src/orchestrator/loop.js');
+    await runOrchestrator(config, undefined, { once: true });
+
+    const state = await loadState(undefined, tmpDir);
+    const task = state.tasks.find((entry) => entry.id === 'ORCH-C-VERIFY');
+    expect(task?.status).toBe('blocked');
+    expect(task?.verification?.checks.typecheck?.status).toBe('fail');
+    expect(task?.progress.at(-1)?.message).toContain('Verification blocked build');
+    expect(phases).toEqual(['frame']);
   });
 
   it('acquires, heartbeats, and releases the project lock', async () => {

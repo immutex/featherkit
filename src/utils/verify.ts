@@ -9,6 +9,8 @@ import {
   runGitDiff,
 } from './git.js';
 import type { VerificationCheck, VerificationResult } from '../config/schema.js';
+import { AVAILABLE_CHECKS } from '../verification/index.js';
+import { parseTaskFiles, resolveTaskFiles, runChecks } from '../verification/runner.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -430,27 +432,35 @@ export async function runVerifyBuild(opts: VerifyOptions): Promise<VerificationR
   let scopeChecks: VerificationCheck[] = [];
   let doneCriteriaCheck: VerificationCheck | null = null;
   let diffForTodos = '';
+  let taskFiles: string[] = [];
 
   if (existsSync(taskMdPath)) {
     const md = await readFile(taskMdPath, 'utf8');
-    const taskFiles = parseFilesFromTaskMd(md);
+    taskFiles = parseTaskFiles(md);
     const scopeResult = await checkGitScope(taskFiles, opts.base ?? 'HEAD', opts.cwd);
     scopeChecks = scopeResult.checks;
     diffForTodos = scopeResult.diff;
     doneCriteriaCheck = checkDoneCriteriaStatus(md);
+  } else {
+    taskFiles = await resolveTaskFiles(opts.cwd, opts.docsDir, opts.taskId);
   }
 
-  const tsCheck = await checkTypeScript(opts.cwd);
-  const testCheck = await checkTestSuite(opts.cwd);
-  const linterChecks = await checkLinters(opts.cwd);
+  const runCheckResults = await runChecks(Object.keys(AVAILABLE_CHECKS), opts.cwd, { taskFiles });
   const todosCheck = checkTodosInDiff(diffForTodos);
+
+  const verificationChecks = Object.entries(runCheckResults).map(([name, result]) => ({
+    name: `Verification: ${name}`,
+    status: result.status === 'skipped' ? 'warn' : result.status,
+    message:
+      result.output?.trim().length
+        ? `${result.status} in ${result.durationMs}ms\n${result.output.trim()}`
+        : `${result.status} in ${result.durationMs}ms`,
+  } satisfies VerificationCheck));
 
   const checks = [
     ...taskChecks,
     ...scopeChecks,
-    tsCheck,
-    testCheck,
-    ...linterChecks,
+    ...verificationChecks,
     todosCheck,
     ...(doneCriteriaCheck ? [doneCriteriaCheck] : []),
   ];

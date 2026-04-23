@@ -6,6 +6,7 @@ import { openMemoryDb, type MemoryDb } from '../memory/db.js';
 import { retrieveMemoryContext, type RetrievalTrace } from '../memory/retrieval/index.js';
 import { writePhaseMemories } from '../memory/write/index.js';
 import { loadState, saveState } from '../mcp/state-io.js';
+import { runChecks, resolveTaskFiles } from '../verification/runner.js';
 import { DEFAULT_WORKFLOW } from '../workflow/default.js';
 import { nextStep } from '../workflow/engine.js';
 import { WorkflowSchema, type Workflow } from '../workflow/schema.js';
@@ -103,6 +104,17 @@ function nextPhase(task: TaskEntry, workflow: Workflow): ModelRole | null {
   }
 
   return null;
+}
+
+function formatVerificationFailure(results: Record<string, { status: 'pass' | 'fail' | 'skipped'; output?: string }>): string {
+  const failures = Object.entries(results).filter(([, result]) => result.status === 'fail');
+  if (failures.length === 0) {
+    return 'Verification blocked the phase.';
+  }
+
+  return failures
+    .map(([name, result]) => `${name}: ${result.output?.split('\n')[0] ?? 'failed'}`)
+    .join(' | ');
 }
 
 async function setTaskStatus(
@@ -301,6 +313,44 @@ export async function runOrchestrator(
            emit(runtimeHooks, { type: 'task:done', taskId: latestTask.id });
           taskFinished = true;
           continue;
+        }
+
+        const phaseNode = workflow.nodes.find((node) => node.role === phase);
+        if (phaseNode?.requires?.length) {
+          const taskFiles = await resolveTaskFiles(cwd, resolve(cwd, config.docsDir), latestTask.id);
+          const checks = await runChecks(phaseNode.requires, cwd, { taskFiles });
+
+          latestTask.verification = {
+            lastRunAt: new Date().toISOString(),
+            checks,
+          };
+
+          const hasFailure = Object.values(checks).some((check) => check.status === 'fail');
+          if (hasFailure) {
+            latestTask.status = 'blocked';
+            latestTask.progress = [
+              ...latestTask.progress,
+              {
+                timestamp: new Date().toISOString(),
+                role: phase,
+                message: `Verification blocked ${phase}: ${formatVerificationFailure(checks)}`,
+              },
+            ];
+            if (latestState.currentTask === latestTask.id) {
+              latestState.currentTask = null;
+            }
+            await saveState(latestState, config.stateDir, cwd);
+            emit(runtimeHooks, {
+              type: 'phase:failed',
+              taskId: latestTask.id,
+              phase,
+              reason: formatVerificationFailure(checks),
+            });
+            taskFinished = true;
+            continue;
+          }
+
+          await saveState(latestState, config.stateDir, cwd);
         }
 
         if (phase === 'sync') {

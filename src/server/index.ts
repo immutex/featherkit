@@ -10,6 +10,7 @@ import { handleConnectionsRoute } from './routes/connections.js';
 import { handleMemoryRoute } from './routes/memory.js';
 import { handleStateRoute } from './routes/state.js';
 import { handleTasksRoute } from './routes/tasks.js';
+import { handleVerificationRoute } from './routes/verification.js';
 import { handleWorkflowRoute } from './routes/workflow.js';
 import { createWsServer } from './ws.js';
 import { sendJson } from './utils.js';
@@ -78,6 +79,7 @@ export async function startServer(config: FeatherConfig, port: number, options: 
       const context = { config, cwd, readOnly };
       if (await handleStateRoute(req, res, pathname, context)) return;
       if (await handleWorkflowRoute(req, res, pathname, context)) return;
+      if (await handleVerificationRoute(req, res, pathname, context)) return;
       if (await handleMemoryRoute(req, res, pathname, context)) return;
       if (await handleConnectionsRoute(req, res, pathname, context)) return;
       if (await handleTasksRoute(req, res, pathname, context)) return;

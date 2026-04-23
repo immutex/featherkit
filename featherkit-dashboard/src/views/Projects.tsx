@@ -7,14 +7,13 @@ import { Dot } from '@/components/ui/Dot';
 import { Card, MotionCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { PhaseDots } from '@/components/ui/PhaseDots';
-import { Toggle } from '@/components/ui/Toggle';
 import { cn } from '@/lib/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fadeUp, stagger, staggerItem } from '@/lib/motion';
 import { KanbanBoard } from './Kanban';
 import { WorkflowCanvas } from './Workflow';
-import { useDashboardProjects } from '@/lib/queries';
-import { GitBranch, GitCommit, Folder, Play, Filter, List, LayoutGrid, MessageCircle, Send, Sparkles, Plus, Wrench, CornerDownLeft, Bot } from 'lucide-react';
+import { useDashboardProjects, useRunVerification, useVerificationQuery } from '@/lib/queries';
+import { GitBranch, GitCommit, Folder, Play, Filter, List, LayoutGrid, MessageCircle, Send, Sparkles, CornerDownLeft, Bot } from 'lucide-react';
 
 export function ProjectsView({
   selectedProject,
@@ -370,88 +369,87 @@ function TasksList({ tasks }: { tasks: TaskEntry[] }) {
 }
 
 function VerificationConfig({ project }: { project: Project }) {
-  const [tools, setTools] = useState(project.verificationTools);
-  const [notes, setNotes] = useState(project.verificationNotes);
-  const [detecting, setDetecting] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newCmd, setNewCmd] = useState('');
-
-  function addTool() {
-    if (!newName || !newCmd) return;
-    setTools(t => [...t, { id: `vt-${Date.now()}`, name: newName, command: newCmd, enabled: true }]);
-    setNewName('');
-    setNewCmd('');
-  }
-
-  function toggleTool(id: string) {
-    setTools(t => t.map(x => x.id === id ? { ...x, enabled: !x.enabled } : x));
-  }
-
-  function handleDetect() {
-    setDetecting(true);
-    setTimeout(() => setDetecting(false), 2000);
-  }
-
   return (
-    <div className="max-w-[900px] space-y-5">
+    <div className="max-w-[1100px] space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Verification Tools</h2>
-          <p className="text-sm text-ink-4 mt-1">Configure which checks run after each build phase.</p>
+          <h2 className="text-lg font-semibold">Verification Runs</h2>
+          <p className="text-sm text-ink-4 mt-1">Live check results per task, with on-demand re-runs from the dashboard.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDetect} disabled={detecting}>
-          <Sparkles size={14} />{detecting ? 'Detecting…' : 'Auto-detect tools'}
-        </Button>
       </div>
 
       <Card className="p-0 overflow-hidden">
-        <div className="grid grid-cols-[1fr_1fr_70px_70px_50px] px-5 py-2.5 text-xs text-ink-5 uppercase tracking-wider border-b border-border bg-elevated/50">
-          <span>Name</span><span>Command</span><span>Status</span><span>Duration</span><span>On</span>
+        <div className="grid grid-cols-[220px_180px_1fr_120px] px-5 py-2.5 text-xs text-ink-5 uppercase tracking-wider border-b border-border bg-elevated/50">
+          <span>Task</span><span>Last run</span><span>Checks</span><span>Action</span>
         </div>
         <motion.div initial="initial" animate="animate" variants={stagger(0.04)}>
-          {tools.map(t => (
-            <motion.div key={t.id} variants={staggerItem} className="grid grid-cols-[1fr_1fr_70px_70px_50px] px-5 py-3 items-center border-b border-border/50 last:border-b-0">
-              <div className="flex items-center gap-2">
-                <Wrench size={13} className="text-ink-4" />
-                <span className="text-sm font-medium capitalize">{t.name}</span>
-              </div>
-              <span className="font-mono text-sm text-ink-3">{t.command}</span>
-              {t.lastStatus ? (
-                <Badge tone={t.lastStatus === 'ok' ? 'ok' : t.lastStatus === 'warn' ? 'warn' : 'err'} className="justify-self-start normal-case">{t.lastStatus}</Badge>
-              ) : <span className="text-sm text-ink-5">—</span>}
-              <span className="text-sm font-mono text-ink-4">{t.duration || '—'}</span>
-              <Toggle checked={t.enabled} onChange={() => toggleTool(t.id)} />
-            </motion.div>
+          {project.tasks.map(task => (
+            <VerificationRow key={task.id} task={task} />
           ))}
         </motion.div>
       </Card>
-
-      <Card className="p-4">
-        <div className="text-sm font-semibold mb-3">Add tool manually</div>
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <label className="text-xs text-ink-5 uppercase tracking-wider mb-1 block">Name</label>
-            <input value={newName} onChange={e => setNewName(e.target.value)} className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none" placeholder="lint" />
-          </div>
-          <div className="flex-1">
-            <label className="text-xs text-ink-5 uppercase tracking-wider mb-1 block">Command</label>
-            <input value={newCmd} onChange={e => setNewCmd(e.target.value)} className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink font-mono focus:border-accent focus:outline-none" placeholder="eslint ." />
-          </div>
-          <Button variant="outline" size="sm" onClick={addTool}><Plus size={14} />Add</Button>
-        </div>
-      </Card>
-
-      <Card className="p-4">
-        <div className="text-sm font-semibold mb-2">Project notes for AI detection</div>
-        <textarea
-          value={notes}
-          onChange={e => setNotes(e.target.value)}
-          className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-sm text-ink resize-none focus:border-accent focus:outline-none h-24"
-          placeholder="Describe your stack, frameworks, testing tools…"
-        />
-        <p className="text-xs text-ink-5 mt-2">This context helps the AI agent pick appropriate verification tools for your project.</p>
-      </Card>
     </div>
+  );
+}
+
+function verificationTone(status: 'pass' | 'fail' | 'skipped'): 'ok' | 'err' | 'muted' {
+  if (status === 'pass') return 'ok';
+  if (status === 'fail') return 'err';
+  return 'muted';
+}
+
+function formatVerificationTimestamp(value: string | undefined | null): string {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Never';
+  return date.toLocaleString();
+}
+
+function formatCheckDuration(durationMs: number): string {
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function VerificationRow({ task }: { task: TaskEntry }) {
+  const verification = useVerificationQuery(task.id);
+  const rerun = useRunVerification(task.id);
+  const checks = verification.data?.checks ? Object.entries(verification.data.checks) : [];
+
+  return (
+    <motion.div variants={staggerItem} className="grid grid-cols-[220px_180px_1fr_120px] gap-4 px-5 py-3 items-start border-b border-border/50 last:border-b-0">
+      <div>
+        <div className="text-sm font-medium text-ink">{task.title}</div>
+        <div className="text-xs font-mono text-ink-5 mt-1">{task.id}</div>
+      </div>
+
+      <div className="text-sm text-ink-4">
+        {verification.isLoading ? 'Loading…' : formatVerificationTimestamp(verification.data?.lastRunAt)}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {verification.isLoading && <span className="text-sm text-ink-5">Loading results…</span>}
+        {verification.isError && <Badge tone="err">failed to load</Badge>}
+        {!verification.isLoading && !verification.isError && checks.length === 0 && (
+          <span className="text-sm text-ink-5">No verification run recorded yet.</span>
+        )}
+        {checks.map(([name, result]) => (
+          <Badge
+            key={`${task.id}-${name}`}
+            tone={verificationTone(result.status)}
+            title={result.output}
+            className="normal-case"
+          >
+            {name}: {result.status} · {formatCheckDuration(result.durationMs)}
+          </Badge>
+        ))}
+      </div>
+
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => rerun.mutate()} disabled={rerun.isPending}>
+          <Sparkles size={14} />{rerun.isPending ? 'Running…' : 'Re-run'}
+        </Button>
+      </div>
+    </motion.div>
   );
 }
 

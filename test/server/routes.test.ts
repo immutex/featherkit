@@ -196,6 +196,26 @@ describe('dashboard server routes', () => {
     });
   });
 
+  it('runs verification for a task and persists the latest check results', async () => {
+    const postResponse = await requestJson(server.port, 'POST', '/api/verification/task-runnable/run', server.token);
+    expect(postResponse.statusCode).toBe(200);
+    expect(postResponse.body).toMatchObject({
+      lastRunAt: expect.any(String),
+      checks: expect.objectContaining({
+        typecheck: expect.objectContaining({ status: expect.any(String) }),
+        test: expect.objectContaining({ status: expect.any(String) }),
+        lint: expect.objectContaining({ status: expect.any(String) }),
+      }),
+    });
+
+    const getResponse = await requestJson(server.port, 'GET', '/api/verification/task-runnable', server.token);
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.body).toMatchObject(postResponse.body as object);
+
+    const state = JSON.parse(await readFile(join(cwd, '.project-state', 'state.json'), 'utf8')) as ProjectState;
+    expect(state.tasks.find((task) => task.id === 'task-runnable')?.verification).toMatchObject(postResponse.body as object);
+  });
+
   it('rejects activating a task whose dependencies are not done', async () => {
     const response = await requestJson(server.port, 'PATCH', '/api/tasks/task-needs-deps', server.token, { status: 'active' });
     expect(response.statusCode).toBe(409);

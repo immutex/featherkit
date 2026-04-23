@@ -11,23 +11,28 @@ Expand the verification system from `tsc + test` to seven distinct checks (lint,
 - **`src/verification/checks/build.ts`** *(new)* — run `npm run build` / `bun run build` if `scripts.build` in nearest `package.json`. Skip if not present.
 - **`src/verification/checks/git-clean.ts`** *(new)* — `git status --porcelain` scoped to `task.files` if available, else full repo. Fail if uncommitted changes exist outside expected paths.
 - **`src/verification/checks/deps-drift.ts`** *(new)* — compare `package.json` dependencies against lockfile. Fail if they differ (using `bun install --frozen-lockfile --dry-run` or equivalent).
+- **`src/verification/subprocess.ts`** *(new)* — isolated child-process runner for verification checks so they are deterministic under Bun/Vitest without execa mock leakage.
 - **`src/verification/runner.ts`** *(new)* — `runChecks(names: string[], cwd): CheckSummary`. Runs named checks in parallel, collects results.
 - **`src/verification/index.ts`** *(new)* — exports all check functions + `AVAILABLE_CHECKS` map.
-- **`src/workflow/schema.ts`** — add `requires?: string[]` optional field to `WorkflowNodeSchema`. Example: `{ id: 'sync', role: 'sync', requires: ['typecheck', 'test', 'lint'] }`.
-- **`src/workflow/engine.ts`** — before returning a role from `nextStep()`, check if the node has `requires`. If so, call `runChecks(node.requires, cwd)` — if any check fails, return a new `'blocked'` signal instead of the role (caller handles it).
-- **`src/mcp/tools/verify-phase.ts`** — expand to use `runChecks()` instead of inline tsc/test calls.
+- **`src/orchestrator/loop.ts`** — run `node.requires` verification checks in the caller path before agent spawn; block the task and persist results if any required check fails.
+- **`src/utils/verify.ts`** — expand the build phase verifier to use `runChecks()` instead of inline tsc/test calls.
 - **`src/server/routes/verification.ts`** *(new)* — `GET /api/verification/:taskId` → last check results from state. `POST /api/verification/:taskId/run` → run all enabled checks, return results + persist to state.
+- **`src/server/index.ts`** — wire the verification route into `feather serve`.
+- **`src/config/schema.ts`** — persist the latest task-level verification summary in state.
+- **`featherkit-dashboard/src/lib/queries.ts`** — add verification query + rerun mutation hooks and types.
 - **`featherkit-dashboard/src/views/Projects.tsx` (VerificationTable)** — wire to `useQuery(['verification', taskId])` + Re-run button calls `apiPost('/api/verification/:id/run')`.
 - **`test/verification/checks.test.ts`** *(new)* — unit tests for each check using temp dirs with known pass/fail conditions.
+- **`test/orchestrator/loop.test.ts`** — verify `requires` gating blocks the build phase when typecheck fails.
+- **`test/server/routes.test.ts`** — verify verification API reruns and state persistence through `feather serve`.
 
 ## Done Criteria
-- [ ] `runChecks(['typecheck', 'test'], cwd)` on this repo returns `{ typecheck: 'pass', test: 'pass' }`.
-- [ ] `runChecks(['lint'], cwd)` returns `skipped` if biome/eslint not found, `pass`/`fail` if found.
-- [ ] A workflow node with `requires: ['typecheck', 'test']` blocks the agent spawn if typecheck fails — confirmed by introducing a deliberate TS error and running the orchestrator.
-- [ ] `POST /api/verification/:id/run` returns check results and persists them to state.json.
-- [ ] Verification tab in the dashboard shows real check results with last-run timestamp and Re-run button.
-- [ ] Re-run button issues the POST and updates the table within 10s.
-- [ ] `bun run build` passes. `bun test test/verification/checks.test.ts` passes.
+- [x] `runChecks(['typecheck', 'test'], cwd)` on this repo returns `{ typecheck: 'pass', test: 'pass' }`.
+- [x] `runChecks(['lint'], cwd)` returns `skipped` if biome/eslint not found, `pass`/`fail` if found.
+- [x] A workflow node with `requires: ['typecheck', 'test']` blocks the agent spawn if typecheck fails — confirmed by introducing a deliberate TS error and running the orchestrator.
+- [x] `POST /api/verification/:id/run` returns check results and persists them to state.json.
+- [x] Verification tab in the dashboard shows real check results with last-run timestamp and Re-run button.
+- [x] Re-run button issues the POST and updates the table within 10s.
+- [x] `bun run build` passes. `bun test test/verification/checks.test.ts` passes.
 
 ## Risks
 - `git-clean` scoped to task files requires `task.files` to be populated — this field may not exist on all tasks. Fall back to full repo diff if `task.files` is empty.

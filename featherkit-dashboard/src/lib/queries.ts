@@ -32,6 +32,7 @@ export type ApiTask = {
   dependsOn?: string[];
   progress: ApiProgressEntry[];
   reviewNotes?: string;
+  verification?: ApiVerificationSummary;
 };
 
 export type ApiProjectState = {
@@ -81,6 +82,17 @@ export type ApiWorkflow = {
 export type ApiConnections = {
   mcpServers: Record<string, { command?: string; args?: string[]; transport?: string } & Record<string, unknown>>;
   providers: Array<{ provider: string; connected: boolean }>;
+};
+
+export type ApiVerificationCheck = {
+  status: 'pass' | 'fail' | 'skipped';
+  output?: string;
+  durationMs: number;
+};
+
+export type ApiVerificationSummary = {
+  lastRunAt: string | null;
+  checks: Record<string, ApiVerificationCheck>;
 };
 
 type PatchTaskVariables = {
@@ -178,6 +190,23 @@ async function getMockConnections(): Promise<ApiConnections> {
       provider: connection.provider,
       connected: connection.status === 'connected',
     })),
+  };
+}
+
+async function getMockVerification(taskId: string): Promise<ApiVerificationSummary> {
+  const state = await getMockState();
+  const task = state.tasks.find((entry) => entry.id === taskId);
+  if (!task) {
+    return { lastRunAt: null, checks: {} };
+  }
+
+  return task.verification ?? {
+    lastRunAt: new Date().toISOString(),
+    checks: {
+      typecheck: { status: 'pass', durationMs: 320, output: 'Mock typecheck passed.' },
+      test: { status: 'pass', durationMs: 840, output: 'Mock test run passed.' },
+      lint: { status: 'skipped', durationMs: 0, output: 'No mock linter configured.' },
+    },
   };
 }
 
@@ -987,6 +1016,33 @@ export function useRunTask() {
       return apiPost(`/api/tasks/${encodeURIComponent(taskId)}/run`);
     },
     onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['state'] });
+    },
+  });
+}
+
+export function useVerificationQuery(taskId: string) {
+  return useQuery({
+    queryKey: ['verification', taskId],
+    queryFn: () => (USE_MOCK ? getMockVerification(taskId) : apiGet<ApiVerificationSummary>(`/api/verification/${encodeURIComponent(taskId)}`)),
+    staleTime: USE_MOCK ? Infinity : 5_000,
+    enabled: taskId.length > 0,
+  });
+}
+
+export function useRunVerification(taskId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (USE_MOCK) {
+        return getMockVerification(taskId);
+      }
+
+      return apiPost<ApiVerificationSummary>(`/api/verification/${encodeURIComponent(taskId)}/run`);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['verification', taskId] });
       await queryClient.invalidateQueries({ queryKey: ['state'] });
     },
   });
