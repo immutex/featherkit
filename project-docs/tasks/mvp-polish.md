@@ -13,12 +13,12 @@ Fix the 6 failing dashboard tests, fill in architecture.md with the real project
 - **`featherkit-dashboard/package.json`** — bump dashboard version to `1.0.0-alpha` as well.
 
 ## Done Criteria
-- [ ] `bun test` in project root returns 0 failures (all 382+ tests pass).
-- [ ] `bun run build` passes with no type errors.
-- [ ] `bun run build` in `featherkit-dashboard/` passes with no TS errors.
-- [ ] `project-docs/context/architecture.md` is fully filled in (not the template placeholder).
-- [ ] `package.json` version is `1.0.0-alpha`.
-- [ ] Git commit created with message `chore: bump version to 1.0.0-alpha`.
+- [x] `bun test` in project root returns 0 failures (all 382+ tests pass).
+- [x] `bun run build` passes with no type errors.
+- [x] `bun run build` in `featherkit-dashboard/` passes with no TS errors.
+- [x] `project-docs/context/architecture.md` is fully filled in (not the template placeholder).
+- [x] `package.json` version is `1.0.0-alpha`.
+- [x] Git commit created with message `chore: bump version to 1.0.0-alpha`.
 
 ## Risks
 - The failing tests may point to missing source files that were accidentally omitted (Badge, mock). Check git log for when they were last present before assuming they need to be written from scratch.

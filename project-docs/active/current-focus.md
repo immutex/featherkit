@@ -1,7 +1,7 @@
 # Current Focus
 
 **Project:** featheragents
-**Updated:** 2026-04-22
+**Updated:** 2026-04-23
 
 ## Active Tasks
 
@@ -9,7 +9,6 @@
 |----|-------|-----------|
 | `ipc-a` | Cross-process event relay — orchestrator → dashboard WS | `tasks/ipc-a.md` |
 | `auth-a` | OAuth + Claude CLI auth — `feather auth` + Connections tab | `tasks/auth-a.md` |
-| `mvp-polish` | Fix failing tests, fill architecture.md, bump to 1.0.0-alpha | `tasks/mvp-polish.md` |
 
 ## Next Up
 
@@ -39,6 +38,8 @@ None
 | `orch-d` | Approval gates |
 | `orch-e` | TUI dashboard |
 | `orch-f2` | Meta-router — `claude --print` harness |
+| `mvp-polish` | Fix failing tests, fill architecture.md, bump to 1.0.0-alpha |
+| `ci-a` | GitHub Actions CI + npm publish pipeline + feather bin alias |
 
 ## Post-Alpha
 

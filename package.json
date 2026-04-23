@@ -4,11 +4,13 @@
   "description": "Lean multi-model agentic coding workflow — bootstraps project structure, skills, and a local MCP server for coordinating Claude Code and OpenCode.",
   "type": "module",
   "bin": {
+    "feather": "./dist/cli.js",
     "featherkit": "./dist/cli.js",
     "featherkit-mcp": "./dist/server.js"
   },
   "files": [
     "dist",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],

@@ -1,22 +1,18 @@
 # Latest Handoff
 
-**From:** frame
-**To:** build
-**Time:** 2026-04-22T22:00:00.000Z
-**Task:** mvp-polish / ipc-a / auth-a
+**From:** sync
+**To:** frame
+**Time:** 2026-04-23T03:42:27.084Z
+**Task:** e2e-a
 
 ## Notes
 
-**MVP sprint status:** The bulk of the 1.0.0-alpha work is complete. dash-b (server), mem-d (memory wiring), dash-c (frontend wiring), dash-d (workflow canvas), mem-e (memory dashboard tab) are all done. Tests are 400/400 green.
+**e2e-a closed out.**
 
-**Three tasks remain active:**
+- Committed as `80b7caa`: `feat: add end-to-end integration tests for init, doctor, serve, orchestrate`
+- 7 files changed: +296 / -14 lines
+- All 7 done criteria met, critic approved, tsc 0 errors, 416/416 tests pass
+- Task marked `done` in state.json, currentTask cleared to null
+- `src/orchestrator/loop.ts` gained a backward-compatible `cwd` override on `OrchestratorRunOpts` — justified testability fix, all 53 existing orchestrator tests pass
 
-1. **`ipc-a`** — Cross-process event relay. The orchestrator needs to append `OrchestratorEvent` JSON lines to `.project-state/events.jsonl`. The dashboard server needs to tail this file and relay events to WS clients. Task file: `project-docs/tasks/ipc-a.md`.
-
-2. **`auth-a`** — `feather auth status/login/logout` CLI command + real provider status in the Connections tab. Claude uses `claude auth login`; non-Claude providers go through Pi's `AuthStorage`. Doctor command needs `claude`/`pi` binary checks added. Task file: `project-docs/tasks/auth-a.md`.
-
-3. **`mvp-polish`** — Tests are already passing. Remaining items: verify architecture.md is complete (done as of this session), bump `package.json` version to `1.0.0-alpha`, commit. Task file: `project-docs/tasks/mvp-polish.md`.
-
-**What is next:** Pick up `ipc-a` and `auth-a` in parallel (no dependency between them). `mvp-polish` is the final gate — do it after the other two are critic-approved.
-
-**Blockers:** None.
+No blockers. Task is complete.
