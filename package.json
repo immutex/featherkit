@@ -4,13 +4,14 @@
   "description": "Lean multi-model agentic coding workflow — bootstraps project structure, skills, and a local MCP server for coordinating Claude Code and OpenCode.",
   "type": "module",
   "bin": {
-    "feather": "./dist/cli.js",
-    "featherkit": "./dist/cli.js",
-    "featherkit-mcp": "./dist/server.js"
+    "feather": "dist/cli.js",
+    "featherkit": "dist/cli.js",
+    "featherkit-mcp": "dist/server.js"
   },
   "files": [
     "dist",
     "featherkit-dashboard/dist",
+    "featherkit-dashboard/dist/**/*",
     "CHANGELOG.md",
     "README.md",
     "LICENSE"
@@ -37,7 +38,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/immutex/featherkit.git"
+    "url": "git+https://github.com/immutex/featherkit.git"
   },
   "homepage": "https://github.com/immutex/featherkit#readme",
   "bugs": {
@@ -46,7 +47,8 @@
   "license": "MIT",
   "publishConfig": {
     "access": "public",
-    "registry": "https://registry.npmjs.org/"
+    "registry": "https://registry.npmjs.org/",
+    "tag": "alpha"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
