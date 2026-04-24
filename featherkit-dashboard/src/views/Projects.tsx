@@ -12,7 +12,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { fadeUp, stagger, staggerItem } from '@/lib/motion';
 import { KanbanBoard } from './Kanban';
 import { WorkflowCanvas } from './Workflow';
-import { useDashboardProjects, useRunVerification, useVerificationQuery } from '@/lib/queries';
+import {
+  type ApiHistoryEvent,
+  useDashboardProjects,
+  useEventsQuery,
+  useRunTask,
+  useRunVerification,
+  useSendChatMutation,
+  useStateQuery,
+  useVerificationQuery,
+} from '@/lib/queries';
+import { ORCHESTRATOR_EVENT_NAME, type OrchestratorEvent } from '@/lib/ws';
 import { GitBranch, GitCommit, Folder, Play, Filter, List, LayoutGrid, MessageCircle, Send, Sparkles, CornerDownLeft, Bot } from 'lucide-react';
 
 export function ProjectsView({
@@ -23,6 +33,8 @@ export function ProjectsView({
   onToast: (toast: { tone: 'accent' | 'ok' | 'warn' | 'err'; title: string; desc?: string }) => void;
 }) {
   const projects = useDashboardProjects();
+  const { data: state } = useStateQuery();
+  const runTask = useRunTask();
   const project = projects.find(p => p.id === selectedProject) || projects[0];
   const [sub, setSub] = useState('tasks');
 
@@ -33,6 +45,8 @@ export function ProjectsView({
       </div>
     );
   }
+
+  const activeTaskId = state?.currentTask ?? project.tasks.find((task) => task.status === 'active')?.id;
 
   const subs: TabDef[] = [
     { id: 'overview', label: 'Overview' },
@@ -62,7 +76,32 @@ export function ProjectsView({
               <span className="flex items-center gap-1.5"><GitCommit size={13} /> {project.commit}</span>
             </div>
           </div>
-          <Button variant="accent" size="sm"><Play size={14} />Run orchestrator</Button>
+          <Button
+            variant="accent"
+            size="sm"
+            disabled={runTask.isPending || !activeTaskId}
+            onClick={() => {
+              if (!activeTaskId) {
+                onToast({ tone: 'warn', title: 'No active task to run', desc: 'Activate a task first, then run the orchestrator.' });
+                return;
+              }
+
+              runTask.mutate(activeTaskId, {
+                onSuccess: () => {
+                  onToast({ tone: 'ok', title: 'Orchestrator queued', desc: `Task ${activeTaskId} is ready to run.` });
+                },
+                onError: (error) => {
+                  onToast({
+                    tone: 'err',
+                    title: 'Failed to queue orchestrator',
+                    desc: error instanceof Error ? error.message : 'Unknown error',
+                  });
+                },
+              });
+            }}
+          >
+            <Play size={14} />{runTask.isPending ? 'Queueing…' : 'Run orchestrator'}
+          </Button>
         </div>
         <Tabs tabs={subs} active={sub} onChange={setSub} />
       </div>
@@ -101,9 +140,15 @@ type ChatMessage = {
 };
 
 function ChatPanel({ project }: { project: Project }) {
+  const sendChat = useSendChatMutation();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const initial: ChatMessage[] = [
-      { id: 'sys-1', role: 'system', content: 'Orchestrator started. Frame phase running on orch-f2.', timestamp: '10:38:00' },
+      {
+        id: 'sys-1',
+        role: 'system',
+        content: 'Messages sent here are relayed to the active orchestrator session.',
+        timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+      },
     ];
     project.pendingInputs.forEach(inp => {
       const options = inp.options ?? [];
@@ -123,22 +168,91 @@ function ChatPanel({ project }: { project: Project }) {
     return initial;
   });
   const [input, setInput] = useState('');
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, pendingRequestId]);
+
+  useEffect(() => {
+    function handleEvent(event: Event) {
+      const detail = (event as CustomEvent<OrchestratorEvent>).detail;
+      if (detail.type !== 'chat-response' || detail.projectId !== project.id) {
+        return;
+      }
+
+      if (pendingRequestId && detail.requestId && detail.requestId !== pendingRequestId) {
+        return;
+      }
+
+      setMessages((current) => [
+        ...current,
+        {
+          id: detail.requestId ?? `agent-${Date.now()}`,
+          role: 'agent',
+          agentName: detail.agentName ?? 'Orchestrator',
+          agentColor: 'sync',
+          content: detail.message,
+          timestamp: formatClock(detail.at),
+          taskId: detail.taskId,
+        },
+      ]);
+      setPendingRequestId(null);
+      setChatError(null);
+    }
+
+    window.addEventListener(ORCHESTRATOR_EVENT_NAME, handleEvent as EventListener);
+    return () => window.removeEventListener(ORCHESTRATOR_EVENT_NAME, handleEvent as EventListener);
+  }, [pendingRequestId, project.id]);
+
+  useEffect(() => {
+    if (!pendingRequestId) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setPendingRequestId(null);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `system-timeout-${Date.now()}`,
+          role: 'system',
+          content: 'Still waiting for a response from the orchestrator.',
+          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
+        },
+      ]);
+    }, 30_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [pendingRequestId]);
 
   function handleSend() {
-    if (!input.trim()) return;
+    const content = input.trim();
+    if (!content || sendChat.isPending || pendingRequestId) return;
+
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      content: input,
+      content,
       timestamp: new Date().toLocaleTimeString('en-US', { hour12: false }),
     };
     setMessages(m => [...m, userMsg]);
     setInput('');
+    setChatError(null);
+
+    sendChat.mutate(
+      { projectId: project.id, message: content },
+      {
+        onSuccess: (response) => {
+          setPendingRequestId(response.requestId);
+        },
+        onError: (error) => {
+          setChatError(error instanceof Error ? error.message : 'Failed to send message.');
+        },
+      },
+    );
   }
 
   return (
@@ -147,6 +261,7 @@ function ChatPanel({ project }: { project: Project }) {
         {messages.map(msg => (
           <MessageBubble key={msg.id} msg={msg} />
         ))}
+        {pendingRequestId && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
 
@@ -167,13 +282,28 @@ function ChatPanel({ project }: { project: Project }) {
               <CornerDownLeft size={11} />
             </div>
           </div>
-          <Button variant="accent" size="sm" onClick={handleSend} className="h-[44px] px-4">
-            <Send size={14} />Send
+          <Button variant="accent" size="sm" onClick={handleSend} disabled={sendChat.isPending || Boolean(pendingRequestId)} className="h-[44px] px-4">
+            <Send size={14} />{sendChat.isPending || pendingRequestId ? 'Waiting…' : 'Send'}
           </Button>
         </div>
+        {chatError && <p className="mt-2 text-sm text-err text-center">{chatError}</p>}
         <p className="text-xs text-ink-5 text-center mt-2">
           Messages are routed by the orchestrator to the appropriate agent.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start py-1">
+      <div className="max-w-[75%] border-l-2 border-l-role-sync/40 bg-role-sync/5 rounded-2xl rounded-bl-md px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-role-sync">
+          <Bot size={13} />
+          <span className="font-medium">Orchestrator</span>
+          <span className="text-ink-5">is typing…</span>
+        </div>
       </div>
     </div>
   );
@@ -238,7 +368,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 
 function Overview({ project }: { project: Project }) {
   const done = project.tasks.filter(t => t.status === 'done').length;
-  const pct = Math.round((done / project.tasks.length) * 100);
+  const pct = project.tasks.length === 0 ? 0 : Math.round((done / project.tasks.length) * 100);
   return (
     <motion.div initial="initial" animate="animate" variants={stagger(0.1)} className="max-w-[1100px] space-y-5">
       <div className="grid grid-cols-3 gap-4">
@@ -454,22 +584,37 @@ function VerificationRow({ task }: { task: TaskEntry }) {
 }
 
 function HistoryTimeline() {
-  const items = [
-    { ts: '10:42:18', kind: 'run', title: 'orch-f · build phase started' },
-    { ts: '10:38:42', kind: 'run', title: 'orch-e · sync phase complete' },
-    { ts: '10:22:08', kind: 'commit', title: 'f673649 chore: bump version to 0.6.0' },
-    { ts: '09:51:27', kind: 'run', title: 'orch-d · critic advance' },
-    { ts: '09:44:02', kind: 'commit', title: 'c2b6699 feat: add Playwright MCP' },
-  ];
+  const events = useEventsQuery(50);
+
+  if (events.isLoading) {
+    return <div className="text-sm text-ink-5">Loading events…</div>;
+  }
+
+  if (events.isError) {
+    return <div className="text-sm text-err">Failed to load recent events.</div>;
+  }
+
+  const items = (events.data ?? []).map((event, index) => ({
+    id: historyEventId(event, index),
+    ts: historyEventTime(event),
+    kind: historyEventKind(event),
+    tone: historyEventTone(event),
+    title: historyEventTitle(event),
+  }));
+
+  if (items.length === 0) {
+    return <div className="text-sm text-ink-5">No events yet.</div>;
+  }
+
   return (
     <motion.div initial="initial" animate="animate" variants={stagger(0.1)} className="max-w-[700px]">
       <div className="relative pl-8 border-l-2 border-border space-y-5">
         {items.map(it => (
-          <motion.div key={it.ts} variants={staggerItem} className="relative">
+          <motion.div key={it.id} variants={staggerItem} className="relative">
             <span className="absolute -left-[29px] top-1.5 w-2.5 h-2.5 rounded-full bg-accent shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
             <div className="flex items-baseline gap-3">
               <span className="text-xs font-mono text-ink-5 shrink-0">{it.ts}</span>
-              <Badge tone="muted">{it.kind}</Badge>
+              <Badge tone={it.tone}>{it.kind}</Badge>
               <span className="text-sm text-ink-2">{it.title}</span>
             </div>
           </motion.div>
@@ -477,6 +622,108 @@ function HistoryTimeline() {
       </div>
     </motion.div>
   );
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function formatClock(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleTimeString('en-US', { hour12: false });
+}
+
+function historyEventId(event: ApiHistoryEvent, index: number): string {
+  return asString(event.requestId) ?? asString(event.id) ?? `${asString(event.type) ?? 'event'}-${index}`;
+}
+
+function historyEventTime(event: ApiHistoryEvent): string {
+  const raw = asString(event.at) ?? asString(event.ts);
+  if (!raw) {
+    return '—';
+  }
+
+  return formatClock(raw);
+}
+
+function historyEventKind(event: ApiHistoryEvent): string {
+  const type = asString(event.type);
+  if (!type || type === 'mock') {
+    return asString(event.kind) ?? 'event';
+  }
+
+  if (type.startsWith('phase:')) return 'phase';
+  if (type.startsWith('gate:')) return 'gate';
+  if (type.startsWith('orchestrator:')) return 'orchestrator';
+  if (type === 'user-input' || type === 'chat-response') return 'chat';
+  return type;
+}
+
+function historyEventTone(event: ApiHistoryEvent): 'accent' | 'ok' | 'warn' | 'err' | 'muted' {
+  const tone = asString(event.tone);
+  if (tone === 'accent' || tone === 'ok' || tone === 'warn' || tone === 'err' || tone === 'muted') {
+    return tone;
+  }
+
+  switch (asString(event.type)) {
+    case 'phase:failed':
+      return 'err';
+    case 'phase:complete':
+    case 'gate:approved':
+      return 'ok';
+    case 'gate:awaiting':
+      return 'warn';
+    case 'user-input':
+    case 'chat-response':
+    case 'phase:start':
+      return 'accent';
+    default:
+      return 'muted';
+  }
+}
+
+function historyEventTitle(event: ApiHistoryEvent): string {
+  const type = asString(event.type);
+  if (!type || type === 'mock') {
+    return asString(event.title) ?? asString(event.message) ?? 'Event';
+  }
+
+  switch (type) {
+    case 'phase:start':
+      return `${asString(event.taskId) ?? 'task'} · ${asString(event.phase) ?? 'phase'} started`;
+    case 'phase:complete':
+      return `${asString(event.taskId) ?? 'task'} · ${asString(event.phase) ?? 'phase'} completed (${asString(event.status) ?? 'ok'})`;
+    case 'phase:failed':
+      return `${asString(event.taskId) ?? 'task'} · ${asString(event.phase) ?? 'phase'} failed: ${asString(event.reason) ?? 'Unknown error'}`;
+    case 'phase:stdout':
+      return asString(event.line) ?? 'Phase output';
+    case 'gate:awaiting':
+      return `${asString(event.taskId) ?? 'task'} · ${asString(event.phase) ?? 'phase'} awaiting approval`;
+    case 'gate:approved':
+      return `${asString(event.taskId) ?? 'task'} · ${asString(event.phase) ?? 'phase'} approved`;
+    case 'task:done':
+      return `${asString(event.taskId) ?? 'task'} completed`;
+    case 'orchestrator:lock-acquired':
+      return `Orchestrator lock acquired (pid ${asNumber(event.pid) ?? 'unknown'})`;
+    case 'orchestrator:lock-released':
+      return 'Orchestrator lock released';
+    case 'orchestrator:stale-lock-cleared':
+      return `Cleared stale lock from pid ${asNumber(event.stalePid) ?? 'unknown'}`;
+    case 'user-input':
+      return `User input${asString(event.taskId) ? ` · ${asString(event.taskId)}` : ''}: ${asString(event.message) ?? ''}`;
+    case 'chat-response':
+      return `${asString(event.agentName) ?? 'Orchestrator'}: ${asString(event.message) ?? ''}`;
+    default:
+      return type;
+  }
 }
 
 function toneFor(status: string): any {

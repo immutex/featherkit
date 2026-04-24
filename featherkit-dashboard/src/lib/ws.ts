@@ -11,11 +11,15 @@ export type OrchestratorEvent =
   | { type: 'phase:failed'; taskId: string; phase: string; reason: string }
   | { type: 'gate:awaiting'; taskId: string; phase: 'frame' | 'sync' }
   | { type: 'gate:approved'; taskId: string; phase: 'frame' | 'sync' }
+  | { type: 'user-input'; projectId: string; message: string; at: string; requestId: string; taskId?: string }
+  | { type: 'chat-response'; projectId: string; message: string; at: string; agentName?: string; requestId?: string; taskId?: string }
   | { type: 'task:done'; taskId: string }
   | { type: 'orchestrator:lock-acquired'; pid: number }
   | { type: 'orchestrator:lock-released' }
   | { type: 'orchestrator:stale-lock-cleared'; stalePid: number }
   | { type: 'ping'; at: string };
+
+export const ORCHESTRATOR_EVENT_NAME = 'featherkit:orchestrator-event';
 
 export function useOrchestratorEvents(onEvent: (event: OrchestratorEvent) => void): { connected: boolean } {
   const queryClient = useQueryClient();
@@ -59,8 +63,10 @@ export function useOrchestratorEvents(onEvent: (event: OrchestratorEvent) => voi
         }
 
         setConnected(true);
+        window.dispatchEvent(new CustomEvent<OrchestratorEvent>(ORCHESTRATOR_EVENT_NAME, { detail: event }));
         onEvent(event);
         void queryClient.invalidateQueries({ queryKey: ['state'] });
+        void queryClient.invalidateQueries({ queryKey: ['events'] });
       });
 
       socket.addEventListener('close', () => {

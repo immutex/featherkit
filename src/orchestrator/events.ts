@@ -9,6 +9,8 @@ export type OrchestratorEvent =
   | { type: 'phase:failed'; taskId: string; phase: string; reason: string }
   | { type: 'gate:awaiting'; taskId: string; phase: 'frame' | 'sync' }
   | { type: 'gate:approved'; taskId: string; phase: 'frame' | 'sync' }
+  | { type: 'user-input'; projectId: string; message: string; at: string; requestId: string; taskId?: string }
+  | { type: 'chat-response'; projectId: string; message: string; at: string; agentName?: string; requestId?: string; taskId?: string }
   | { type: 'task:done'; taskId: string }
   | { type: 'orchestrator:lock-acquired'; pid: number }
   | { type: 'orchestrator:lock-released' }

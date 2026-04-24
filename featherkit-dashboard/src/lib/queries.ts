@@ -105,6 +105,15 @@ export type ApiVerificationSummary = {
   checks: Record<string, ApiVerificationCheck>;
 };
 
+export type ApiChatAck = {
+  ok: true;
+  queued: true;
+  requestId: string;
+  projectId: string;
+};
+
+export type ApiHistoryEvent = Record<string, unknown>;
+
 type PatchTaskVariables = {
   taskId: string;
   status: TaskEntry['status'];
@@ -243,6 +252,19 @@ async function getMockVerification(taskId: string): Promise<ApiVerificationSumma
       lint: { status: 'skipped', durationMs: 0, output: 'No mock linter configured.' },
     },
   };
+}
+
+async function getMockEvents(limit: number): Promise<ApiHistoryEvent[]> {
+  const { FK_DATA } = await loadMockData();
+
+  return FK_DATA.events.slice(0, limit).map((event) => ({
+    type: 'mock',
+    ts: event.ts,
+    kind: event.kind,
+    tone: event.tone,
+    message: event.message,
+    taskId: event.task,
+  }));
 }
 
 export type ApiMemoryType = MockMemory['type'];
@@ -1081,6 +1103,37 @@ export function useRunTask() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['state'] });
     },
+  });
+}
+
+export function useSendChatMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ projectId, message }: { projectId: string; message: string }) => {
+      if (USE_MOCK) {
+        return {
+          ok: true,
+          queued: true,
+          requestId: `mock-${Date.now()}`,
+          projectId,
+        } satisfies ApiChatAck;
+      }
+
+      return apiPost<ApiChatAck>('/api/chat', { projectId, message });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+  });
+}
+
+export function useEventsQuery(limit = 50) {
+  return useQuery({
+    queryKey: ['events', limit],
+    queryFn: () => (USE_MOCK ? getMockEvents(limit) : apiGet<ApiHistoryEvent[]>(`/api/events?limit=${encodeURIComponent(String(limit))}`)),
+    staleTime: USE_MOCK ? Infinity : 2_000,
+    refetchInterval: USE_MOCK ? false : 5_000,
   });
 }
 

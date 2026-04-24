@@ -278,6 +278,71 @@ describe('dashboard server routes', () => {
     expect(state.tasks.find((task) => task.id === 'task-runnable')?.verification).toMatchObject(postResponse.body as object);
   });
 
+  it('returns recent events from events.jsonl in reverse chronological order', async () => {
+    await writeFile(
+      join(cwd, '.project-state', 'events.jsonl'),
+      [
+        JSON.stringify({ type: 'phase:start', taskId: 'task-runnable', phase: 'build' }),
+        JSON.stringify({ type: 'user-input', at: '2026-04-23T10:00:00.000Z', projectId: 'workspace', message: 'Ship it', requestId: 'req-1' }),
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const response = await requestJson(server.port, 'GET', '/api/events?limit=5', server.token);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual([
+      expect.objectContaining({ type: 'user-input', requestId: 'req-1' }),
+      expect.objectContaining({ type: 'phase:start', taskId: 'task-runnable' }),
+    ]);
+  });
+
+  it('returns an empty array when there are no persisted events yet', async () => {
+    const response = await requestJson(server.port, 'GET', '/api/events?limit=5', server.token);
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
+  it('rejects chat messages when no orchestrator is running', async () => {
+    const response = await requestJson(server.port, 'POST', '/api/chat', server.token, {
+      projectId: 'workspace',
+      message: 'Hello?',
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.body).toEqual({ error: 'No orchestrator running for this project' });
+  });
+
+  it('appends chat messages to events.jsonl when the orchestrator is running', async () => {
+    const nextState: ProjectState = {
+      version: 1,
+      currentTask: 'task-runnable',
+      lastUpdated: new Date().toISOString(),
+      orchestrator: { status: 'running', pid: 4321, startedAt: new Date().toISOString() },
+      tasks: [
+        makeTask('dep-done', { status: 'done' }),
+        makeTask('dep-pending'),
+        makeTask('task-blockable', { status: 'active' }),
+        makeTask('task-needs-deps', { dependsOn: ['dep-pending'] }),
+        makeTask('task-runnable', { dependsOn: ['dep-done'] }),
+      ],
+    };
+    await saveState(nextState, config.stateDir, cwd);
+
+    const response = await requestJson(server.port, 'POST', '/api/chat', server.token, {
+      projectId: 'workspace',
+      message: 'Please continue.',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject({ ok: true, queued: true, projectId: 'workspace', requestId: expect.any(String) });
+
+    const log = await readFile(join(cwd, '.project-state', 'events.jsonl'), 'utf8');
+    expect(log).toContain('"type":"user-input"');
+    expect(log).toContain('"projectId":"workspace"');
+    expect(log).toContain('"taskId":"task-runnable"');
+    expect(log).toContain('"message":"Please continue."');
+  });
+
   it('rejects activating a task whose dependencies are not done', async () => {
     const response = await requestJson(server.port, 'PATCH', '/api/tasks/task-needs-deps', server.token, { status: 'active' });
     expect(response.statusCode).toBe(409);

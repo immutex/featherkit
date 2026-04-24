@@ -6,8 +6,10 @@ import { URL, fileURLToPath } from 'node:url';
 
 import type { FeatherConfig } from '../config/schema.js';
 import { requireAuth } from './auth.js';
+import { handleChatRoute } from './routes/chat.js';
 import { handleAgentsRoute } from './routes/agents.js';
 import { handleConnectionsRoute } from './routes/connections.js';
+import { handleEventsRoute } from './routes/events.js';
 import { handleMemoryRoute } from './routes/memory.js';
 import { handleStateRoute } from './routes/state.js';
 import { handleTasksRoute } from './routes/tasks.js';
@@ -132,6 +134,8 @@ export async function startServer(config: FeatherConfig, port: number, options: 
       }
 
       const context = { config, cwd, readOnly };
+      if (await handleChatRoute(req, res, pathname, context)) return;
+      if (await handleEventsRoute(req, res, url, context)) return;
       if (await handleStateRoute(req, res, pathname, context)) return;
       if (await handleWorkflowRoute(req, res, pathname, context)) return;
       if (await handleVerificationRoute(req, res, pathname, context)) return;
