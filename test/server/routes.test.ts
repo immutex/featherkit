@@ -538,4 +538,103 @@ describe('dashboard server routes', () => {
       expect(response.body).toMatchObject({ error: 'Invalid .mcp.json payload.' });
     });
   });
+
+  describe('GET/POST/PUT/DELETE /api/agents', () => {
+    it('returns agent models with system prompts', async () => {
+      const response = await requestJson(server.port, 'GET', '/api/agents', server.token);
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toMatchObject({
+        models: expect.arrayContaining([
+          expect.objectContaining({ role: 'frame', provider: 'anthropic' }),
+        ]),
+      });
+    });
+
+    it('creates a new custom agent via POST', async () => {
+      const response = await requestJson(server.port, 'POST', '/api/agents', server.token, {
+        role: 'reviewer',
+        provider: 'openai',
+        model: 'gpt-5.4',
+        systemPrompt: 'You are a reviewer.',
+      });
+      expect(response.statusCode).toBe(201);
+      expect(response.body).toMatchObject({
+        models: expect.arrayContaining([
+          expect.objectContaining({ role: 'reviewer', provider: 'openai', model: 'gpt-5.4', systemPrompt: 'You are a reviewer.' }),
+        ]),
+      });
+
+      const onDisk = JSON.parse(await readFile(join(cwd, 'featherkit', 'config.json'), 'utf8'));
+      expect(onDisk.models).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'reviewer' }),
+        ]),
+      );
+    });
+
+    it('rejects creating an agent with a duplicate role', async () => {
+      const response = await requestJson(server.port, 'POST', '/api/agents', server.token, {
+        role: 'frame',
+        provider: 'anthropic',
+        model: 'claude-opus-4-7',
+      });
+      expect(response.statusCode).toBe(409);
+      expect(response.body).toMatchObject({ error: expect.stringContaining('already exists') });
+    });
+
+    it('rejects creating an agent with an invalid role name', async () => {
+      const response = await requestJson(server.port, 'POST', '/api/agents', server.token, {
+        role: 'Bad Role!',
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.body).toMatchObject({ error: 'Invalid agent payload.' });
+    });
+
+    it('deletes a custom agent via DELETE', async () => {
+      await requestJson(server.port, 'POST', '/api/agents', server.token, {
+        role: 'temp-agent',
+        provider: 'openai',
+        model: 'gpt-5.4-mini',
+      });
+
+      const deleteResponse = await requestJson(server.port, 'DELETE', '/api/agents/temp-agent', server.token);
+      expect(deleteResponse.statusCode).toBe(200);
+      expect((deleteResponse.body as { models: unknown[] }).models).toEqual(
+        expect.not.arrayContaining([expect.objectContaining({ role: 'temp-agent' })]),
+      );
+    });
+
+    it('rejects deleting built-in agent roles', async () => {
+      const response = await requestJson(server.port, 'DELETE', '/api/agents/frame', server.token);
+      expect(response.statusCode).toBe(403);
+      expect(response.body).toMatchObject({ error: expect.stringContaining('Cannot delete built-in') });
+    });
+
+    it('returns 404 when deleting a non-existent role', async () => {
+      const response = await requestJson(server.port, 'DELETE', '/api/agents/ghost', server.token);
+      expect(response.statusCode).toBe(404);
+      expect(response.body).toMatchObject({ error: expect.stringContaining('not found') });
+    });
+
+    it('saves system prompts via PUT', async () => {
+      const getResponse = await requestJson(server.port, 'GET', '/api/agents', server.token);
+      const models = (getResponse.body as { models: Array<{ role: string; provider: string; model: string; systemPrompt?: string }> }).models;
+
+      const updated = models.map((m) =>
+        m.role === 'frame'
+          ? { ...m, systemPrompt: 'Updated frame prompt.' }
+          : m,
+      );
+
+      const putResponse = await requestJson(server.port, 'PUT', '/api/agents', server.token, { models: updated });
+      expect(putResponse.statusCode).toBe(200);
+      expect(putResponse.body).toMatchObject({
+        models: expect.arrayContaining([
+          expect.objectContaining({ role: 'frame', systemPrompt: 'Updated frame prompt.' }),
+        ]),
+      });
+    });
+  });
 });

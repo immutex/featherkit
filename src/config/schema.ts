@@ -6,7 +6,8 @@ export type ModelRole = z.infer<typeof ModelRoleSchema>;
 export const ModelConfigSchema = z.object({
   provider: z.string(),
   model: z.string(),
-  role: ModelRoleSchema,
+  role: z.string(),
+  systemPrompt: z.string().optional(),
 });
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 

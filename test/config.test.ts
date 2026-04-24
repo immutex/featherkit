@@ -56,12 +56,20 @@ describe('FeatherConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid model role', () => {
+  it('accepts custom model roles alongside built-in roles', () => {
     const result = FeatherConfigSchema.safeParse({
       ...validConfig,
-      models: [{ provider: 'anthropic', model: 'x', role: 'deploy' }],
+      models: [
+        ...validConfig.models,
+        { provider: 'openai', model: 'x', role: 'deploy' },
+      ],
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.models).toEqual(
+        expect.arrayContaining([expect.objectContaining({ role: 'deploy' })]),
+      );
+    }
   });
 
   it('applies default stateDir when omitted', () => {

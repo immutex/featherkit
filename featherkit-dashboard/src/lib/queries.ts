@@ -12,7 +12,7 @@ import type {
 } from '@/data/mock';
 import { BUILTIN_AGENTS, getBuiltInAgentByRole } from '@/lib/builtin-agents';
 import { USE_MOCK } from '@/lib/env';
-import { apiGet, apiPatch, apiPost, apiPut } from './api';
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from './api';
 
 async function loadMockData() {
   return import('@/data/mock');
@@ -88,6 +88,7 @@ export type ApiModelConfig = {
   role: string;
   provider: string;
   model: string;
+  systemPrompt?: string;
 };
 
 export type ApiAgents = {
@@ -238,6 +239,7 @@ async function getMockAgents(): Promise<ApiAgents> {
         role: agent.roleColor,
         provider,
         model,
+        systemPrompt: agent.systemPrompt,
       };
     }),
   };
@@ -1129,6 +1131,47 @@ export function useUpdateAgents() {
       }
 
       return apiPut<ApiAgents>('/api/agents', agents);
+    },
+    onSuccess: async (agents) => {
+      queryClient.setQueryData(['agents'], agents);
+      if (!USE_MOCK) {
+        await queryClient.invalidateQueries({ queryKey: ['agents'] });
+      }
+    },
+  });
+}
+
+export function useCreateAgentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (agent: { role: string; provider: string; model: string; systemPrompt?: string }) => {
+      if (USE_MOCK) {
+        return { models: [...(queryClient.getQueryData<ApiAgents>(['agents'])?.models ?? []), agent] };
+      }
+
+      return apiPost<ApiAgents>('/api/agents', agent);
+    },
+    onSuccess: async (agents) => {
+      queryClient.setQueryData(['agents'], agents);
+      if (!USE_MOCK) {
+        await queryClient.invalidateQueries({ queryKey: ['agents'] });
+      }
+    },
+  });
+}
+
+export function useDeleteAgentMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (role: string) => {
+      if (USE_MOCK) {
+        const current = queryClient.getQueryData<ApiAgents>(['agents']);
+        return { models: current?.models.filter((m) => m.role !== role) ?? [] };
+      }
+
+      return apiDelete<ApiAgents>(`/api/agents/${encodeURIComponent(role)}`);
     },
     onSuccess: async (agents) => {
       queryClient.setQueryData(['agents'], agents);
