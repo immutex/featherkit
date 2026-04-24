@@ -2,6 +2,7 @@ import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDragg
 import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Dot } from '@/components/ui/Dot';
 import { PhaseDots } from '@/components/ui/PhaseDots';
 import { cn } from '@/lib/cn';
@@ -9,6 +10,7 @@ import { motion } from 'framer-motion';
 import { stagger, staggerItem } from '@/lib/motion';
 import type { TaskEntry, TaskStatus } from '@/data/mock';
 import { usePatchTask } from '@/lib/queries';
+import { CreateTaskInlineForm, useCreateTaskForm } from './CreateTaskForm';
 
 const columns: { id: TaskStatus; label: string; tone: 'muted' | 'accent' | 'err' | 'ok' }[] = [
   { id: 'pending', label: 'Pending', tone: 'muted' },
@@ -27,6 +29,7 @@ export function KanbanBoard({
   const [dragId, setDragId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const patchTask = usePatchTask();
+  const createTaskForm = useCreateTaskForm(onToast);
 
   function onStart(e: DragStartEvent) { setDragId(String(e.active.id)); }
   function onEnd(e: DragEndEvent) {
@@ -59,24 +62,54 @@ export function KanbanBoard({
   const dragged = tasks.find(t => t.id === dragId);
 
   return (
-    <DndContext sensors={sensors} onDragStart={onStart} onDragEnd={onEnd}>
-      <motion.div
-        initial="initial"
-        animate="animate"
-        variants={stagger(0.08)}
-        className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-w-[1400px]"
-      >
-        {columns.map(col => {
-          const items = tasks.filter(t => t.status === col.id).sort((a, b) => (a.uiOrder ?? 0) - (b.uiOrder ?? 0));
-          return (
-            <motion.div key={col.id} variants={staggerItem}>
-              <Column id={col.id} label={col.label} tone={col.tone} items={items} />
-            </motion.div>
-          );
-        })}
-      </motion.div>
-      <DragOverlay>{dragged && <TaskCard task={dragged} dragging />}</DragOverlay>
-    </DndContext>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-ink-2">Kanban board</h2>
+          <p className="text-sm text-ink-4">Drag tasks between lanes or add a new pending task.</p>
+        </div>
+        <Button
+          type="button"
+          variant={createTaskForm.isCreating ? 'ghost' : 'accent'}
+          size="sm"
+          onClick={createTaskForm.toggleCreateForm}
+        >
+          {createTaskForm.isCreating ? 'Cancel' : 'New task'}
+        </Button>
+      </div>
+
+      {createTaskForm.isCreating && (
+        <CreateTaskInlineForm
+          draftId={createTaskForm.draftId}
+          draftTitle={createTaskForm.draftTitle}
+          error={createTaskForm.formError}
+          isPending={createTaskForm.isPending}
+          onDraftIdChange={createTaskForm.setDraftId}
+          onDraftTitleChange={createTaskForm.setDraftTitle}
+          onSubmit={createTaskForm.handleSubmit}
+          onClear={createTaskForm.resetCreateForm}
+        />
+      )}
+
+      <DndContext sensors={sensors} onDragStart={onStart} onDragEnd={onEnd}>
+        <motion.div
+          initial="initial"
+          animate="animate"
+          variants={stagger(0.08)}
+          className="grid grid-cols-1 gap-4 max-w-[1400px] md:grid-cols-2 xl:grid-cols-4"
+        >
+          {columns.map(col => {
+            const items = tasks.filter(t => t.status === col.id).sort((a, b) => (a.uiOrder ?? 0) - (b.uiOrder ?? 0));
+            return (
+              <motion.div key={col.id} variants={staggerItem}>
+                <Column id={col.id} label={col.label} tone={col.tone} items={items} />
+              </motion.div>
+            );
+          })}
+        </motion.div>
+        <DragOverlay>{dragged && <TaskCard task={dragged} dragging />}</DragOverlay>
+      </DndContext>
+    </div>
   );
 }
 

@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { motion, AnimatePresence } from 'framer-motion';
 import { fadeUp, stagger, staggerItem } from '@/lib/motion';
 import { KanbanBoard } from './Kanban';
+import { CreateTaskInlineForm, useCreateTaskForm } from './CreateTaskForm';
 import { WorkflowCanvas } from './Workflow';
 import { useDashboardProjects, useRunVerification, useVerificationQuery } from '@/lib/queries';
 import { GitBranch, GitCommit, Folder, Play, Filter, List, LayoutGrid, MessageCircle, Send, Sparkles, CornerDownLeft, Bot } from 'lucide-react';
@@ -283,10 +284,11 @@ function Overview({ project }: { project: Project }) {
 
 function TasksSection({ tasks, onToast }: { tasks: TaskEntry[]; onToast: (toast: { tone: 'accent' | 'ok' | 'warn' | 'err'; title: string; desc?: string }) => void }) {
   const [view, setView] = useState<'list' | 'kanban'>('list');
+  const createTaskForm = useCreateTaskForm(onToast);
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex border border-border rounded-lg overflow-hidden">
           <button
             onClick={() => setView('list')}
@@ -301,7 +303,31 @@ function TasksSection({ tasks, onToast }: { tasks: TaskEntry[]; onToast: (toast:
             <LayoutGrid size={14} />Kanban
           </button>
         </div>
+        {view === 'list' && (
+          <Button
+            type="button"
+            variant={createTaskForm.isCreating ? 'ghost' : 'accent'}
+            size="sm"
+            onClick={createTaskForm.toggleCreateForm}
+          >
+            {createTaskForm.isCreating ? 'Cancel' : 'New task'}
+          </Button>
+        )}
       </div>
+
+      {view === 'list' && createTaskForm.isCreating && (
+        <CreateTaskInlineForm
+          className="mb-4 p-4"
+          draftId={createTaskForm.draftId}
+          draftTitle={createTaskForm.draftTitle}
+          error={createTaskForm.formError}
+          isPending={createTaskForm.isPending}
+          onDraftIdChange={createTaskForm.setDraftId}
+          onDraftTitleChange={createTaskForm.setDraftTitle}
+          onSubmit={createTaskForm.handleSubmit}
+          onClear={createTaskForm.resetCreateForm}
+        />
+      )}
 
       <AnimatePresence mode="wait">
         {view === 'list' ? (

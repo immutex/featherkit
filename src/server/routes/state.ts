@@ -9,6 +9,19 @@ const TaskPatchSchema = z.object({
   status: TaskStatusSchema,
 });
 
+const TaskIdSchema = z
+  .string({ error: 'Task ID is required.' })
+  .trim()
+  .min(1, 'Task ID is required.')
+  .regex(/^[A-Za-z0-9-_]+$/, 'Task ID may only contain letters, numbers, hyphens, and underscores.');
+
+const TaskCreateSchema = z.object({
+  id: TaskIdSchema,
+  title: z.string({ error: 'Task title is required.' }).trim().min(1, 'Task title is required.'),
+  goal: z.string().trim().min(1).optional(),
+  dependsOn: z.array(TaskIdSchema).optional(),
+});
+
 type StateRouteContext = {
   config: FeatherConfig;
   cwd?: string;
@@ -67,6 +80,48 @@ export async function handleStateRoute(
   if (pathname === '/api/state' && req.method === 'GET') {
     const state = await loadState(context.config.stateDir, cwd);
     sendJson(res, 200, state);
+    return true;
+  }
+
+  if (pathname === '/api/tasks' && req.method === 'POST') {
+    if (context.readOnly) {
+      sendJson(res, 409, { error: 'Dashboard server is running in read-only mode.' });
+      return true;
+    }
+
+    let body: unknown;
+    try {
+      body = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body.' });
+      return true;
+    }
+
+    const parsed = TaskCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? 'Invalid task payload.' });
+      return true;
+    }
+
+    const state = await loadState(context.config.stateDir, cwd);
+    if (state.tasks.some((task) => task.id === parsed.data.id)) {
+      sendJson(res, 409, { error: `Task ${parsed.data.id} already exists.` });
+      return true;
+    }
+
+    const task: TaskEntry = {
+      id: parsed.data.id,
+      title: parsed.data.title,
+      status: 'pending',
+      progress: [],
+      // `goal` is accepted for API compatibility but not persisted because the
+      // task state schema intentionally remains a flat `TaskEntry` list here.
+      ...(parsed.data.dependsOn && parsed.data.dependsOn.length > 0 ? { dependsOn: parsed.data.dependsOn } : {}),
+    };
+
+    state.tasks.push(task);
+    await saveState(state, context.config.stateDir, cwd);
+    sendJson(res, 201, task);
     return true;
   }
 

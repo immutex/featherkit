@@ -110,6 +110,12 @@ type PatchTaskVariables = {
   status: TaskEntry['status'];
 };
 
+type CreateTaskVariables = {
+  id: string;
+  title: string;
+  dependsOn?: string[];
+};
+
 function formatRelativeTime(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
@@ -1020,6 +1026,50 @@ export function usePatchTask() {
       }
     },
     onSettled: async () => {
+      if (!USE_MOCK) {
+        await queryClient.invalidateQueries({ queryKey: ['state'] });
+      }
+    },
+  });
+}
+
+export function useCreateTaskMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, title, dependsOn }: CreateTaskVariables) => {
+      if (USE_MOCK) {
+        const existingState = queryClient.getQueryData<ApiProjectState>(['state']);
+        if (existingState?.tasks.some((task) => task.id === id)) {
+          throw new Error(`Task ${id} already exists.`);
+        }
+
+        return {
+          id,
+          title,
+          status: 'pending',
+          dependsOn,
+          progress: [],
+        } satisfies ApiTask;
+      }
+
+      return apiPost<ApiTask>('/api/tasks', { id, title, dependsOn });
+    },
+    onSuccess: async (task) => {
+      queryClient.setQueryData<ApiProjectState | undefined>(['state'], (previousState) => {
+        if (!previousState) {
+          return previousState;
+        }
+
+        return {
+          ...previousState,
+          lastUpdated: new Date().toISOString(),
+          tasks: previousState.tasks.some((entry) => entry.id === task.id)
+            ? previousState.tasks.map((entry) => (entry.id === task.id ? task : entry))
+            : [...previousState.tasks, task],
+        };
+      });
+
       if (!USE_MOCK) {
         await queryClient.invalidateQueries({ queryKey: ['state'] });
       }
