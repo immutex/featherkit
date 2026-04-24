@@ -24,6 +24,7 @@ function formatFallbackEvent(event: OrchestratorEvent): string {
     case 'orchestrator:lock-acquired': return `[feather] orchestrator:lock-acquired pid=${event.pid}\n`;
     case 'orchestrator:lock-released': return `[feather] orchestrator:lock-released\n`;
     case 'orchestrator:stale-lock-cleared': return `[feather] orchestrator:stale-lock-cleared stalePid=${event.stalePid}\n`;
+    default: return `[feather] event\n`;
   }
 }
 
