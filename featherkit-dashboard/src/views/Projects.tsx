@@ -13,18 +13,17 @@ import { fadeUp, stagger, staggerItem } from '@/lib/motion';
 import { KanbanBoard } from './Kanban';
 import { CreateTaskInlineForm, useCreateTaskForm } from './CreateTaskForm';
 import { WorkflowCanvas } from './Workflow';
+import { VerificationView } from './Verification';
 import {
   type ApiHistoryEvent,
   useDashboardProjects,
   useEventsQuery,
   useRunTask,
-  useRunVerification,
   useSendChatMutation,
   useStateQuery,
-  useVerificationQuery,
 } from '@/lib/queries';
 import { ORCHESTRATOR_EVENT_NAME, type OrchestratorEvent } from '@/lib/ws';
-import { GitBranch, GitCommit, Folder, Play, Filter, List, LayoutGrid, MessageCircle, Send, Sparkles, CornerDownLeft, Bot } from 'lucide-react';
+import { GitBranch, GitCommit, Folder, Play, Filter, List, LayoutGrid, MessageCircle, Send, CornerDownLeft, Bot } from 'lucide-react';
 
 export function ProjectsView({
   selectedProject,
@@ -121,7 +120,7 @@ export function ProjectsView({
             {sub === 'tasks' && <TasksSection tasks={project.tasks} onToast={onToast} />}
             {sub === 'chat' && <ChatPanel project={project} />}
             {sub === 'workflow' && <WorkflowCanvas onToast={onToast} />}
-            {sub === 'verification' && <VerificationConfig project={project} />}
+            {sub === 'verification' && <VerificationView tasks={project.tasks} currentTaskId={null} onToast={onToast} />}
             {sub === 'history' && <HistoryTimeline />}
           </motion.div>
         </AnimatePresence>
@@ -521,91 +520,6 @@ function TasksList({ tasks }: { tasks: TaskEntry[] }) {
         </motion.div>
       </Card>
     </div>
-  );
-}
-
-function VerificationConfig({ project }: { project: Project }) {
-  return (
-    <div className="max-w-[1100px] space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Verification Runs</h2>
-          <p className="text-sm text-ink-4 mt-1">Live check results per task, with on-demand re-runs from the dashboard.</p>
-        </div>
-      </div>
-
-      <Card className="p-0 overflow-hidden">
-        <div className="grid grid-cols-[220px_180px_1fr_120px] px-5 py-2.5 text-xs text-ink-5 uppercase tracking-wider border-b border-border bg-elevated/50">
-          <span>Task</span><span>Last run</span><span>Checks</span><span>Action</span>
-        </div>
-        <motion.div initial="initial" animate="animate" variants={stagger(0.04)}>
-          {project.tasks.map(task => (
-            <VerificationRow key={task.id} task={task} />
-          ))}
-        </motion.div>
-      </Card>
-    </div>
-  );
-}
-
-function verificationTone(status: 'pass' | 'fail' | 'skipped'): 'ok' | 'err' | 'muted' {
-  if (status === 'pass') return 'ok';
-  if (status === 'fail') return 'err';
-  return 'muted';
-}
-
-function formatVerificationTimestamp(value: string | undefined | null): string {
-  if (!value) return 'Never';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Never';
-  return date.toLocaleString();
-}
-
-function formatCheckDuration(durationMs: number): string {
-  if (durationMs < 1000) return `${durationMs}ms`;
-  return `${(durationMs / 1000).toFixed(1)}s`;
-}
-
-function VerificationRow({ task }: { task: TaskEntry }) {
-  const verification = useVerificationQuery(task.id);
-  const rerun = useRunVerification(task.id);
-  const checks = verification.data?.checks ? Object.entries(verification.data.checks) : [];
-
-  return (
-    <motion.div variants={staggerItem} className="grid grid-cols-[220px_180px_1fr_120px] gap-4 px-5 py-3 items-start border-b border-border/50 last:border-b-0">
-      <div>
-        <div className="text-sm font-medium text-ink">{task.title}</div>
-        <div className="text-xs font-mono text-ink-5 mt-1">{task.id}</div>
-      </div>
-
-      <div className="text-sm text-ink-4">
-        {verification.isLoading ? 'Loading…' : formatVerificationTimestamp(verification.data?.lastRunAt)}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {verification.isLoading && <span className="text-sm text-ink-5">Loading results…</span>}
-        {verification.isError && <Badge tone="err">failed to load</Badge>}
-        {!verification.isLoading && !verification.isError && checks.length === 0 && (
-          <span className="text-sm text-ink-5">No verification run recorded yet.</span>
-        )}
-        {checks.map(([name, result]) => (
-          <Badge
-            key={`${task.id}-${name}`}
-            tone={verificationTone(result.status)}
-            title={result.output}
-            className="normal-case"
-          >
-            {name}: {result.status} · {formatCheckDuration(result.durationMs)}
-          </Badge>
-        ))}
-      </div>
-
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" onClick={() => rerun.mutate()} disabled={rerun.isPending}>
-          <Sparkles size={14} />{rerun.isPending ? 'Running…' : 'Re-run'}
-        </Button>
-      </div>
-    </motion.div>
   );
 }
 

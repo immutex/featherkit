@@ -1214,6 +1214,38 @@ export function useRunVerification(taskId: string) {
   });
 }
 
+export type ApiSetupDetectResponse = {
+  checks: Record<string, string>;
+};
+
+export function useSetupDetectQuery() {
+  return useQuery({
+    queryKey: ['verification-setup-detect'],
+    queryFn: () => (USE_MOCK
+      ? Promise.resolve({ checks: { typecheck: 'tsc --noEmit', test: 'bun test', lint: 'eslint src' } })
+      : apiGet<ApiSetupDetectResponse>('/api/verification/setup-detect')),
+    staleTime: Infinity,
+    enabled: false,
+  });
+}
+
+export function useSetupVerificationMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (checks: Record<string, string>) => {
+      if (USE_MOCK) {
+        return { ok: true, checks };
+      }
+
+      return apiPost<{ ok: boolean; checks: Record<string, string> }>('/api/verification/setup', { checks });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['state'] });
+    },
+  });
+}
+
 export function buildWorkflowGraph(workflow: ApiWorkflow): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } {
   const builtInAgents = new Map(BUILTIN_AGENTS.map((agent) => [agent.roleColor, agent]));
 

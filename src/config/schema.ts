@@ -116,6 +116,9 @@ export const FeatherConfigSchema = z.object({
   workflow: z.string().default('project-docs/workflows/default.json'),
   memory: z.preprocess((value) => value ?? {}, MemoryConfigSchema),
   orchestrator: z.preprocess((value) => value ?? {}, OrchestratorConfigSchema),
+  verification: z.object({
+    checks: z.record(z.string(), z.string()).default({}),
+  }).optional(),
 });
 export type FeatherConfig = z.infer<typeof FeatherConfigSchema>;
 
