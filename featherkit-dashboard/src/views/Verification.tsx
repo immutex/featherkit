@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TaskEntry } from '@/data/mock';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { Badge } from '@/components/ui/Badge';
@@ -35,13 +35,13 @@ export function VerificationView({
 
   const hasTasks = tasks.length > 0;
 
-  function registerRun(taskId: string, fn: () => void) {
+  const registerRun = useCallback((taskId: string, fn: () => void) => {
     runAllFns.current.set(taskId, fn);
-  }
+  }, []);
 
-  function unregisterRun(taskId: string) {
+  const unregisterRun = useCallback((taskId: string) => {
     runAllFns.current.delete(taskId);
-  }
+  }, []);
 
   async function handleRunAll() {
     setRunningAll(true);
