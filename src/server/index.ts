@@ -48,7 +48,7 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
 
   res.setHeader('Access-Control-Allow-Origin', DASHBOARD_DEV_ORIGIN);
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
   res.setHeader('Vary', 'Origin');
 }
 

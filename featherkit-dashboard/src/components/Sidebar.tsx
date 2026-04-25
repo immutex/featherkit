@@ -50,7 +50,7 @@ export function Sidebar({
           </div>
           <div>
             <div className="text-base font-semibold tracking-tight">FeatherKit</div>
-            <div className="text-2xs text-ink-5 font-mono uppercase tracking-widest">v0.6.0</div>
+            <div className="text-2xs text-ink-5 font-mono uppercase tracking-widest">v{__APP_VERSION__}</div>
           </div>
           <div className="ml-auto">
             <ConnectionStatus connected={connected} />

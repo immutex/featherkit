@@ -117,7 +117,12 @@ export async function handleVerificationRoute(
     }
 
     const taskFiles = await resolveTaskFiles(cwd, docsDir, taskId);
-    const checks = await runChecks(Object.keys(AVAILABLE_CHECKS), cwd, { taskFiles });
+    const config = await loadConfig(cwd);
+    const configuredChecks = config?.verification?.checks;
+    const checkNames = configuredChecks && Object.keys(configuredChecks).length > 0
+      ? Object.keys(AVAILABLE_CHECKS).filter((name) => name in configuredChecks)
+      : Object.keys(AVAILABLE_CHECKS);
+    const checks = await runChecks(checkNames, cwd, { taskFiles });
     const summary: VerificationRunSummary = {
       lastRunAt: new Date().toISOString(),
       checks,
