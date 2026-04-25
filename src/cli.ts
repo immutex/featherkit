@@ -1,7 +1,4 @@
 import { Command } from 'commander';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 import { initCommand } from './commands/init.js';
 import { doctorCommand } from './commands/doctor.js';
 import { mcpCommand } from './commands/mcp-install.js';
@@ -16,23 +13,14 @@ import { packagesCommand } from './commands/packages.js';
 import { serveCommand } from './commands/serve.js';
 import { authCommand } from './commands/auth.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Read version from package.json at dist time — bundled into cli.js
-let version = '0.1.0';
-try {
-  const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as { version: string };
-  version = pkg.version;
-} catch {
-  // bundled — version constant is fine
-}
+declare const __PKG_VERSION__: string;
 
 const program = new Command();
 
 program
   .name('feather')
   .description('Lean multi-model agentic coding workflow')
-  .version(version);
+  .version(__PKG_VERSION__);
 
 program.addCommand(initCommand);
 program.addCommand(doctorCommand);
